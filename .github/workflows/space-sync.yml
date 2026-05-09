@@ -9,7 +9,6 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    if: ${{ vars.HF_SPACE_REPO != '' && secrets.HF_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
         with:
