@@ -144,6 +144,161 @@ function migrate(db) {
 
     CREATE INDEX IF NOT EXISTS idx_deployments_project
       ON deployments(project_id, updated_at DESC);
+
+    CREATE TABLE IF NOT EXISTS vken_targets (
+      id              TEXT PRIMARY KEY,
+      source          TEXT NOT NULL CHECK(source IN ('url','sample')),
+      source_ref      TEXT NOT NULL,
+      framework       TEXT NOT NULL DEFAULT 'vite-react-tailwind',
+      package_manager TEXT NOT NULL DEFAULT 'npm',
+      tailwind_version INTEGER,
+      workspace_path  TEXT NOT NULL,
+      created_at      INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_vken_targets_source
+      ON vken_targets(source, source_ref);
+
+    CREATE TABLE IF NOT EXISTS vken_runs (
+      id                TEXT PRIMARY KEY,
+      target_id         TEXT NOT NULL REFERENCES vken_targets(id) ON DELETE CASCADE,
+      status            TEXT NOT NULL DEFAULT 'queued'
+                        CHECK(status IN ('queued','running','succeeded','failed','canceled')),
+      started_at        INTEGER,
+      ended_at          INTEGER,
+      score_initial     REAL,
+      score_final       REAL,
+      direction_id      TEXT,
+      patches_proposed  INTEGER DEFAULT 0,
+      patches_approved  INTEGER DEFAULT 0,
+      pr_url            TEXT,
+      bundle_path       TEXT,
+      vllm_input_tokens INTEGER DEFAULT 0,
+      vllm_output_tokens INTEGER DEFAULT 0,
+      created_at        INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_vken_runs_target
+      ON vken_runs(target_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS vken_captures (
+      id              TEXT PRIMARY KEY,
+      run_id          TEXT NOT NULL REFERENCES vken_runs(id) ON DELETE CASCADE,
+      checkpoint      TEXT NOT NULL,
+      route_path      TEXT NOT NULL,
+      viewport        TEXT NOT NULL CHECK(viewport IN ('desktop','tablet','mobile')),
+      screenshot_path TEXT NOT NULL,
+      aria_yaml       TEXT,
+      css_vars_json   TEXT,
+      box_models_json TEXT,
+      console_json    TEXT,
+      captured_at     INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_vken_captures_run_cp
+      ON vken_captures(run_id, checkpoint, route_path, viewport);
+
+    CREATE TABLE IF NOT EXISTS vken_directions (
+      id              TEXT PRIMARY KEY,
+      run_id          TEXT NOT NULL REFERENCES vken_runs(id) ON DELETE CASCADE,
+      name            TEXT NOT NULL,
+      mood            TEXT NOT NULL,
+      summary         TEXT NOT NULL,
+      changes_json    TEXT NOT NULL,
+      effort          TEXT NOT NULL CHECK(effort IN ('low','medium','high')),
+      risk            TEXT NOT NULL CHECK(risk IN ('low','medium','high')),
+      evidence_kb_ids TEXT,
+      is_chosen       INTEGER NOT NULL DEFAULT 0,
+      created_at      INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS vken_findings (
+      id             TEXT PRIMARY KEY,
+      run_id         TEXT NOT NULL REFERENCES vken_runs(id) ON DELETE CASCADE,
+      source         TEXT NOT NULL CHECK(source IN ('static','vl','score')),
+      dimension      TEXT NOT NULL,
+      severity       TEXT NOT NULL CHECK(severity IN ('P0','P1','P2','P3')),
+      description    TEXT NOT NULL,
+      affected_files TEXT NOT NULL,
+      region_box     TEXT,
+      resolved_by    TEXT,
+      created_at     INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS vken_patches (
+      id              TEXT PRIMARY KEY,
+      run_id          TEXT NOT NULL REFERENCES vken_runs(id) ON DELETE CASCADE,
+      finding_ids     TEXT NOT NULL,
+      file_path       TEXT NOT NULL,
+      format          TEXT NOT NULL CHECK(format IN ('search-replace','full-rewrite','json-edit')),
+      hunks_json      TEXT NOT NULL,
+      rationale       TEXT NOT NULL,
+      severity        TEXT NOT NULL CHECK(severity IN ('P0','P1','P2','P3')),
+      impact          REAL NOT NULL,
+      risk            REAL NOT NULL,
+      effort          REAL NOT NULL,
+      confidence      REAL NOT NULL,
+      patchable       REAL NOT NULL,
+      status          TEXT NOT NULL DEFAULT 'proposed'
+                      CHECK(status IN ('proposed','approved','skipped','applied','reverted')),
+      evidence_kb_ids TEXT,
+      created_at      INTEGER NOT NULL,
+      updated_at      INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_vken_patches_run
+      ON vken_patches(run_id, status, created_at);
+
+    CREATE TABLE IF NOT EXISTS vken_validations (
+      id           TEXT PRIMARY KEY,
+      run_id       TEXT NOT NULL REFERENCES vken_runs(id) ON DELETE CASCADE,
+      stage        TEXT NOT NULL CHECK(stage IN ('build','tsc','a11y','pixel','console')),
+      ok           INTEGER NOT NULL,
+      details_json TEXT NOT NULL,
+      created_at   INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS vken_kb_rules (
+      id              TEXT PRIMARY KEY,
+      finding_type    TEXT NOT NULL,
+      framework       TEXT NOT NULL DEFAULT 'vite-react-tailwind',
+      severity        TEXT NOT NULL CHECK(severity IN ('P0','P1','P2','P3')),
+      rule_text       TEXT NOT NULL,
+      accept_count    INTEGER NOT NULL DEFAULT 0,
+      reject_count    INTEGER NOT NULL DEFAULT 0,
+      avg_score_delta REAL NOT NULL DEFAULT 0,
+      evidence_runs   TEXT NOT NULL,
+      signature       TEXT NOT NULL,
+      created_at      INTEGER NOT NULL,
+      updated_at      INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_vken_kb_rules_lookup
+      ON vken_kb_rules(finding_type, framework, severity);
+
+    CREATE TABLE IF NOT EXISTS vken_kb_examples (
+      id              TEXT PRIMARY KEY,
+      rule_id         TEXT NOT NULL REFERENCES vken_kb_rules(id) ON DELETE CASCADE,
+      finding_summary TEXT NOT NULL,
+      patch_format    TEXT NOT NULL,
+      patch_json      TEXT NOT NULL,
+      score_delta     REAL NOT NULL,
+      source_run_id   TEXT,
+      created_at      INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS vken_repo_memory (
+      repo_hash   TEXT PRIMARY KEY,
+      memory_json TEXT NOT NULL,
+      ttl_at      INTEGER NOT NULL,
+      updated_at  INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS vken_run_memory (
+      run_id      TEXT PRIMARY KEY REFERENCES vken_runs(id) ON DELETE CASCADE,
+      memory_json TEXT NOT NULL,
+      updated_at  INTEGER NOT NULL
+    );
   `);
   // Forward-compatible column add for databases created before metadata_json.
   // SQLite has no IF NOT EXISTS for ALTER, so we check pragma_table_info.
@@ -179,6 +334,36 @@ function migrate(db) {
   }
   if (!deploymentCols.some((c) => c.name === 'reachable_at')) {
     db.exec(`ALTER TABLE deployments ADD COLUMN reachable_at INTEGER`);
+  }
+  const vkenCaptureSchema = db
+    .prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'vken_captures'`)
+    .get();
+  if (vkenCaptureSchema?.sql?.includes("viewport IN ('desktop','mobile')")) {
+    db.exec(`
+      ALTER TABLE vken_captures RENAME TO vken_captures_old;
+      CREATE TABLE vken_captures (
+        id              TEXT PRIMARY KEY,
+        run_id          TEXT NOT NULL REFERENCES vken_runs(id) ON DELETE CASCADE,
+        checkpoint      TEXT NOT NULL,
+        route_path      TEXT NOT NULL,
+        viewport        TEXT NOT NULL CHECK(viewport IN ('desktop','tablet','mobile')),
+        screenshot_path TEXT NOT NULL,
+        aria_yaml       TEXT,
+        css_vars_json   TEXT,
+        box_models_json TEXT,
+        console_json    TEXT,
+        captured_at     INTEGER NOT NULL
+      );
+      INSERT INTO vken_captures
+        (id, run_id, checkpoint, route_path, viewport, screenshot_path, aria_yaml,
+         css_vars_json, box_models_json, console_json, captured_at)
+      SELECT id, run_id, checkpoint, route_path, viewport, screenshot_path, aria_yaml,
+             css_vars_json, box_models_json, console_json, captured_at
+        FROM vken_captures_old;
+      DROP TABLE vken_captures_old;
+      CREATE INDEX IF NOT EXISTS idx_vken_captures_run_cp
+        ON vken_captures(run_id, checkpoint, route_path, viewport);
+    `);
   }
 }
 

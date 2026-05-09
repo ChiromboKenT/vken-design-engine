@@ -17,7 +17,8 @@ interface Props {
   onOpenSettings: () => void;
 }
 
-const STORAGE_KEY = 'open-design:pet-position';
+const STORAGE_KEY = 'vken:pet-position';
+const LEGACY_STORAGE_KEY = 'open-design:pet-position';
 
 interface Position {
   // Distances from the right/bottom of the viewport so the overlay
@@ -60,7 +61,7 @@ const DRAG_AXIS_BIAS = 1.18;
 function loadPosition(): Position {
   if (typeof window === 'undefined') return DEFAULT_POSITION;
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) return DEFAULT_POSITION;
     const parsed = JSON.parse(raw) as Partial<Position>;
     return {

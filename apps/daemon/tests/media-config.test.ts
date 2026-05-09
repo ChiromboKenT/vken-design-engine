@@ -20,6 +20,7 @@ describe('media-config OpenAI OAuth fallback', () => {
   let homeDir: string;
   let projectRoot: string;
   const originalHome = process.env.HOME;
+  const originalUserProfile = process.env.USERPROFILE;
   const originalEnv = Object.fromEntries(
     OPENAI_ENV_KEYS.map((key) => [key, process.env[key]]),
   );
@@ -28,6 +29,7 @@ describe('media-config OpenAI OAuth fallback', () => {
     homeDir = await mkdtemp(path.join(tmpdir(), 'od-media-home-'));
     projectRoot = await mkdtemp(path.join(tmpdir(), 'od-media-project-'));
     process.env.HOME = homeDir;
+    process.env.USERPROFILE = homeDir;
     for (const key of OPENAI_ENV_KEYS) {
       delete process.env[key];
     }
@@ -38,6 +40,11 @@ describe('media-config OpenAI OAuth fallback', () => {
       delete process.env.HOME;
     } else {
       process.env.HOME = originalHome;
+    }
+    if (originalUserProfile == null) {
+      delete process.env.USERPROFILE;
+    } else {
+      process.env.USERPROFILE = originalUserProfile;
     }
     for (const key of OPENAI_ENV_KEYS) {
       if (originalEnv[key] == null) {

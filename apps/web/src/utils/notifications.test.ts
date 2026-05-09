@@ -61,6 +61,7 @@ describe('showCompletionNotification', () => {
         ready: Promise.resolve(registration),
       },
     });
+    vi.stubGlobal('window', { isSecureContext: true });
 
     const result = await showCompletionNotification({
       status: 'succeeded',
@@ -69,7 +70,7 @@ describe('showCompletionNotification', () => {
     });
 
     expect(result).toBe('shown');
-    expect(register).toHaveBeenCalledWith('/od-notifications-sw.js');
+    expect(register).toHaveBeenCalledWith('/vken-notifications-sw.js');
     expect(showNotification).toHaveBeenCalledWith(
       'Task completed',
       expect.objectContaining({
@@ -84,6 +85,7 @@ describe('showCompletionNotification', () => {
   it('does not create a notification when permission is not granted', async () => {
     MockNotification.permission = 'denied';
     vi.stubGlobal('Notification', MockNotification as unknown as typeof Notification);
+    vi.stubGlobal('window', { isSecureContext: true });
 
     const result = await showCompletionNotification({
       status: 'failed',
@@ -93,5 +95,27 @@ describe('showCompletionNotification', () => {
 
     expect(result).toBe('permission-denied');
     expect(MockNotification.instances).toHaveLength(0);
+  });
+
+  it('falls back when service worker is unavailable in an insecure context', async () => {
+    const register = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('Notification', MockNotification as unknown as typeof Notification);
+    vi.stubGlobal('navigator', {
+      serviceWorker: {
+        register,
+        ready: Promise.resolve({ showNotification: vi.fn() }),
+      },
+    });
+    vi.stubGlobal('window', { isSecureContext: false });
+
+    const result = await showCompletionNotification({
+      status: 'succeeded',
+      title: 'Task completed',
+      body: 'Done',
+    });
+
+    expect(result).toBe('shown');
+    expect(register).not.toHaveBeenCalled();
+    expect(MockNotification.instances).toHaveLength(1);
   });
 });

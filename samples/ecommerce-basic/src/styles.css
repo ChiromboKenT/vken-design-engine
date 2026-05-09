@@ -1,0 +1,164 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #faf8f5;
+  color: #1f2937;
+}
+
+body {
+  margin: 0;
+}
+
+.shop {
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 18px;
+  background: #ffffff;
+  border: 1px solid #eadfd2;
+  border-radius: 19px;
+}
+
+.nav strong {
+  margin-right: auto;
+}
+
+.nav a {
+  color: #8a6f58;
+  text-decoration: none;
+}
+
+button {
+  border: 1px solid #d8c6b5;
+  background: #fffaf5;
+  color: #7c5d44;
+  border-radius: 15px;
+  padding: 10px 15px;
+}
+
+.pdp {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 28px;
+  margin: 24px 0;
+}
+
+.image {
+  min-height: 560px;
+  background: linear-gradient(135deg, #d6b99c, #f2dfc9 40%, #ab8e72);
+  border-radius: 6px;
+  transform: scaleX(1.06);
+}
+
+.summary {
+  padding: 32px;
+  background: #ffffff;
+  border: 1px solid #eadfd2;
+  border-radius: 30px;
+}
+
+.kicker {
+  color: #a15c38;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+
+.summary h1 {
+  font-size: 48px;
+  line-height: 1.02;
+}
+
+.price {
+  color: #7a4f2b;
+  font-size: 40px;
+}
+
+.description {
+  color: #9a8170;
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+}
+
+.cta {
+  background: #c2410c;
+  color: #fff7ed;
+  border-color: #c2410c;
+  opacity: 0.72;
+}
+
+.secondary {
+  border-radius: 8px;
+}
+
+.specs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding-left: 18px;
+  color: #7f6b5e;
+}
+
+.products {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.product {
+  padding: 16px;
+  background: #ffffff;
+  border: 1px solid #eadfd2;
+  border-radius: 18px;
+}
+
+.product-2,
+.product-4 {
+  border-radius: 4px;
+}
+
+.thumb {
+  height: 180px;
+  background: #efe1d1;
+  border-radius: 12px;
+}
+
+.product h2 {
+  color: #4b3425;
+}
+
+.product p {
+  color: #94715a;
+}
+
+@media (max-width: 760px) {
+  .nav,
+  .actions {
+    flex-wrap: wrap;
+  }
+
+  .pdp,
+  .products,
+  .specs {
+    grid-template-columns: 1fr;
+  }
+
+  .summary h1 {
+    font-size: 34px;
+  }
+
+  .image {
+    min-height: 320px;
+    transform: none;
+  }
+}

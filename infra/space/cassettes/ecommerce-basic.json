@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "sampleId": "ecommerce-basic",
+  "calls": [
+    {
+      "task": "vl",
+      "phase": "critique",
+      "response": {
+        "designQuality": 0.42,
+        "findings": [
+          {
+            "dimension": "hierarchy",
+            "severity": "P1",
+            "description": "Restore the primary buying action above the supporting actions.",
+            "regionBox": { "x": 760, "y": 250, "w": 520, "h": 360 }
+          },
+          {
+            "dimension": "alignment",
+            "severity": "P2",
+            "description": "Remove the stretched product image treatment and align it to the content grid.",
+            "regionBox": { "x": 20, "y": 120, "w": 720, "h": 620 }
+          },
+          {
+            "dimension": "color",
+            "severity": "P2",
+            "description": "Reduce the warm hardcoded palette into consistent commerce tokens.",
+            "regionBox": { "x": 0, "y": 0, "w": 1440, "h": 900 }
+          },
+          {
+            "dimension": "neuroinclusive",
+            "severity": "P2",
+            "description": "Clarify the primary purchase path and keep supporting choices from competing with it.",
+            "regionBox": { "x": 760, "y": 250, "w": 520, "h": 360 }
+          }
+        ]
+      },
+      "usage": { "inputTokens": 1210, "outputTokens": 265 }
+    },
+    {
+      "task": "coder",
+      "phase": "directions",
+      "response": {
+        "directions": [
+          {
+            "id": "buying-clarity",
+            "name": "Buying clarity",
+            "mood": "Confident commerce",
+            "summary": "Make the product image stable and primary purchase action unmistakable.",
+            "changes": ["Fix image proportion", "Strengthen Add to cart", "Demote secondary actions"],
+            "effort": "medium",
+            "risk": "low",
+            "evidenceKbIds": ["seed-commerce-action"]
+          },
+          {
+            "id": "catalog-rhythm",
+            "name": "Catalog rhythm",
+            "mood": "Cleaner browsing",
+            "summary": "Unify product cards and commerce surfaces into a repeatable rhythm.",
+            "changes": ["Normalize product card radii", "Tokenize warm surfaces", "Improve price hierarchy"],
+            "effort": "low",
+            "risk": "low",
+            "evidenceKbIds": ["seed-catalog-rhythm"]
+          }
+        ]
+      },
+      "usage": { "inputTokens": 910, "outputTokens": 250 }
+    },
+    {
+      "task": "coder",
+      "phase": "patches",
+      "response": { "patches": [] },
+      "usage": { "inputTokens": 1600, "outputTokens": 500 }
+    }
+  ]
+}

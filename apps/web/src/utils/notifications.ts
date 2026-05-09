@@ -30,7 +30,7 @@ type NotificationOptionsWithBrowserExtensions = NotificationOptions & {
 
 let ctx: AudioContext | null = null;
 const activeNotifications = new Set<Notification>();
-const SERVICE_WORKER_URL = '/od-notifications-sw.js';
+const SERVICE_WORKER_URL = '/vken-notifications-sw.js';
 
 function getCtx(): AudioContext | null {
   if (typeof window === 'undefined') return null;
@@ -196,7 +196,7 @@ function notificationOptionsFor(
     renotify: true,
     data: {
       status: opts.status,
-      url: typeof window === 'undefined' ? '/' : window.location.href,
+      url: typeof window === 'undefined' || !window.location ? '/' : window.location.href,
     },
   };
 }
@@ -205,6 +205,7 @@ async function showViaServiceWorker(
   opts: CompletionNotificationOpts,
 ): Promise<CompletionNotificationResult | null> {
   if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return null;
+  if (typeof window === 'undefined' || !window.isSecureContext) return null;
   try {
     const registration = await navigator.serviceWorker.register(SERVICE_WORKER_URL);
     const readyRegistration = await navigator.serviceWorker.ready.catch(() => registration);

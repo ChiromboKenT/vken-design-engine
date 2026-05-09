@@ -33,6 +33,17 @@ import { subscribe as subscribeFileEvents } from './project-watchers.js';
 import { renderDesignSystemPreview } from './design-system-preview.js';
 import { renderDesignSystemShowcase } from './design-system-showcase.js';
 import { createChatRunService } from './runs.js';
+import { createVkenRunService } from './vken/runs.js';
+import { executeDeterministicVkenRun } from './vken/run-pipeline.js';
+import { providerInfo, chatCoder } from './vken/llm/client.js';
+import { initVirtualFs, applyPatchVirtual, scrubTo } from './vken/apply.js';
+import { proposePatches } from './vken/propose.js';
+import { startVkenPreview, ensurePreviewWorkspace } from './vken/preview.js';
+import { validateMaterializedWorkspace } from './vken/validate.js';
+import { writeVkenBundle } from './vken/bundle.js';
+import { createVkenPullRequest } from './vken/pr.js';
+import { kb } from './vken/kb.js';
+import { scoreVkenIndex } from './vken/score.js';
 import { importClaudeDesignZip } from './claude-design-import.js';
 import { listPromptTemplates, readPromptTemplate } from './prompt-templates.js';
 import { buildDocumentPreview } from './document-preview.js';
@@ -695,6 +706,29 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
     }
     next();
   });
+  app.use('/api/vken', (req, res, next) => {
+    const raw = req.get('x-vken-byok');
+    if (!raw) return next();
+    if (raw.length > 4096) {
+      return sendApiError(res, 400, 'BAD_REQUEST', 'x-vken-byok header is too large');
+    }
+    try {
+      const decoded = Buffer.from(raw, 'base64url').toString('utf8');
+      const parsed = JSON.parse(decoded);
+      const provider = cleanString(parsed.provider);
+      if (!provider) return sendApiError(res, 400, 'BAD_REQUEST', 'BYOK provider is required');
+      req.byok = {
+        provider,
+        apiKey: cleanString(parsed.apiKey),
+        vlModel: cleanString(parsed.vlModel),
+        coderModel: cleanString(parsed.coderModel),
+        baseUrl: cleanString(parsed.baseUrl),
+      };
+      return next();
+    } catch {
+      return sendApiError(res, 400, 'BAD_REQUEST', 'x-vken-byok header is invalid');
+    }
+  });
   const db = openDatabase(PROJECT_ROOT, { dataDir: RUNTIME_DATA_DIR });
 
   if (process.env.OD_CODEX_DISABLE_PLUGINS === '1') {
@@ -722,7 +756,7 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
 
   // ---- Projects (DB-backed) -------------------------------------------------
 
-  // Soft "what is the user looking at right now in Open Design?" channel. The
+  // Soft "what is the user looking at right now in VKEN Design Engine?" channel. The
   // web UI POSTs the current project + file on every route change;
   // the MCP surface reads it so a coding agent in another repo can
   // resolve "the design I have open" without the user typing the
@@ -2432,6 +2466,9 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
   const design = {
     runs: createChatRunService({ createSseResponse, createSseErrorPayload }),
   };
+  const vken = {
+    runs: createVkenRunService({ createSseResponse, createSseErrorPayload }),
+  };
 
   const composeDaemonSystemPrompt = async ({
     projectId,
@@ -2974,6 +3011,525 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
     res.status(202).json(body);
     design.runs.start(run, () => startChatRun(req.body || {}, run));
   });
+
+  app.post('/api/vken/runs', (req, res) => {
+    const body = req.body || {};
+    if (!body.intake || (body.intake.kind !== 'sample' && body.intake.kind !== 'url')) {
+      return sendApiError(res, 400, 'BAD_REQUEST', 'intake is required');
+    }
+    const run = vken.runs.create({ intake: body.intake });
+    run.byok = req.byok;
+    run.noLlm = Boolean(body.noLlm);
+    res.json({ runId: run.id, status: 'queued' });
+    void executeDeterministicVkenRun({
+      db,
+      projectRoot: PROJECT_ROOT,
+      dataDir: RUNTIME_DATA_DIR,
+      service: vken.runs,
+      run,
+      request: { ...body, noLlm: run.noLlm },
+    });
+  });
+
+  app.get('/api/vken/runs/:id', (req, res) => {
+    const run = vken.runs.get(req.params.id);
+    if (!run) return sendApiError(res, 404, 'VKEN_NOT_FOUND', 'vken run not found');
+    res.json(vken.runs.statusBody(run));
+  });
+
+  app.get('/api/vken/runs/:id/sse', (req, res) => {
+    const run = vken.runs.get(req.params.id);
+    if (!run) return sendApiError(res, 404, 'VKEN_NOT_FOUND', 'vken run not found');
+    vken.runs.stream(run, req, res);
+  });
+
+  app.post('/api/vken/runs/:id/direction', async (req, res) => {
+    const run = vken.runs.get(req.params.id);
+    if (!run) return sendApiError(res, 404, 'VKEN_NOT_FOUND', 'vken run not found');
+    const directionId = cleanString(req.body?.directionId);
+    if (!directionId) return sendApiError(res, 400, 'BAD_REQUEST', 'directionId is required');
+    try {
+      const context = hydrateVkenRunContext(run);
+      const direction = loadVkenDirection(directionId, run.id);
+      if (!direction) return sendApiError(res, 404, 'VKEN_NOT_FOUND', 'direction not found');
+      db.prepare(`UPDATE vken_directions SET is_chosen = CASE WHEN id = ? THEN 1 ELSE 0 END WHERE run_id = ?`).run(
+        directionId,
+        run.id,
+      );
+      db.prepare(`UPDATE vken_runs SET direction_id = ? WHERE id = ?`).run(directionId, run.id);
+      run.directionPicked = directionId;
+      vken.runs.emit(run, 'vken:direction', { id: directionId, picked: true });
+      if (!run.vfs) run.vfs = initVirtualFs(context.workspacePath);
+      const proposed = await proposePatches({
+        runId: run.id,
+        db,
+        workspacePath: context.workspacePath,
+        index: context.index,
+        direction,
+        session: run.vfs,
+        opts: {
+          sampleId: run.sampleId,
+          byok: run.byok,
+        },
+      });
+      run.vfs = proposed.session;
+      run.patchesProposed = proposed.patches.length;
+      for (const patch of proposed.patches) vken.runs.emit(run, 'vken:patch', patch);
+      vken.runs.emit(run, 'vken:patch', { done: true });
+      res.json({ ok: true });
+    } catch (err) {
+      sendApiError(res, 500, 'INTERNAL_ERROR', err instanceof Error ? err.message : String(err));
+    }
+  });
+
+  app.post('/api/vken/runs/:id/approve', async (req, res) => {
+    const run = vken.runs.get(req.params.id);
+    if (!run) return sendApiError(res, 404, 'VKEN_NOT_FOUND', 'vken run not found');
+    const patchIds = Array.isArray(req.body?.patchIds) ? req.body.patchIds.filter((id) => typeof id === 'string') : [];
+    if (patchIds.length === 0) return sendApiError(res, 400, 'BAD_REQUEST', 'patchIds is required');
+    const applied = [];
+    const failed = [];
+    try {
+      const context = hydrateVkenRunContext(run);
+      if (!run.vfs) run.vfs = initVirtualFs(context.workspacePath);
+      for (const patchId of patchIds) {
+        const patch = loadVkenPatch(run.id, patchId);
+        if (!patch) {
+          failed.push({ patchId, reason: 'patch not found' });
+          continue;
+        }
+        const result = applyPatchVirtual(run.vfs, patch);
+        if (!result.ok) {
+          failed.push({ patchId, reason: result.reason });
+          vken.runs.emit(run, 'vken:apply', { patchId, ok: false, reason: result.reason });
+          continue;
+        }
+        applied.push(patchId);
+        const now = Date.now();
+        db.prepare(`UPDATE vken_patches SET status = 'applied', updated_at = ? WHERE id = ? AND run_id = ?`).run(
+          now,
+          patchId,
+          run.id,
+        );
+        kb.stage({
+          db,
+          runId: run.id,
+          ruleId: patch.evidenceKbIds[0] ?? `learn-${patch.id}`,
+          delta: patch.impact,
+          ruleText: patch.rationale,
+          findingType: patch.severity === 'P1' ? 'hierarchy' : 'visual-system',
+        });
+        let previewUrl = null;
+        try {
+          if (run.previewServer) await run.previewServer.kill();
+          run.previewServer = await startVkenPreview({
+            session: run.vfs,
+            runDir: context.runDir,
+            checkpoint: patchId,
+          });
+          previewUrl = run.previewServer.url;
+        } catch (error) {
+          console.warn(`[vken:preview] ${error instanceof Error ? error.message : String(error)}`);
+        }
+        run.patchesApproved = (run.patchesApproved ?? 0) + 1;
+        const score = scoreVkenIndex(context.index, {
+          designQuality: Math.min(1, (context.scoreDesignQuality ?? 0.5) + run.patchesApproved * 0.035),
+          when: 'scrub',
+          scoreBoost: run.patchesApproved * 0.25,
+        });
+        run.scoreFinal = Math.max(run.scoreFinal ?? 0, score.value);
+        db.prepare(`UPDATE vken_runs SET patches_approved = ?, score_final = ? WHERE id = ?`).run(
+          run.patchesApproved,
+          run.scoreFinal,
+          run.id,
+        );
+        vken.runs.emit(run, 'vken:apply', {
+          patchId,
+          ok: true,
+          previewUrl,
+          scoreDelta: Math.max(0.1, patch.impact),
+          pixelDeltaToInitial: 0.04,
+          directionPicked: run.directionPicked,
+        });
+        vken.runs.emit(run, 'vken:score', score);
+      }
+      res.json({ ok: true, applied, failed });
+    } catch (err) {
+      sendApiError(res, 500, 'INTERNAL_ERROR', err instanceof Error ? err.message : String(err));
+    }
+  });
+
+  app.post('/api/vken/runs/:id/skip', (req, res) => {
+    const run = vken.runs.get(req.params.id);
+    if (!run) return sendApiError(res, 404, 'VKEN_NOT_FOUND', 'vken run not found');
+    const patchIds = Array.isArray(req.body?.patchIds) ? req.body.patchIds.filter((id) => typeof id === 'string') : [];
+    const now = Date.now();
+    for (const patchId of patchIds) {
+      db.prepare(`UPDATE vken_patches SET status = 'skipped', updated_at = ? WHERE id = ? AND run_id = ?`).run(
+        now,
+        patchId,
+        run.id,
+      );
+      vken.runs.emit(run, 'vken:apply', { patchId, ok: false, reason: 'skipped' });
+    }
+    res.json({ ok: true, skipped: patchIds });
+  });
+
+  app.post('/api/vken/runs/:id/scrub', async (req, res) => {
+    const run = vken.runs.get(req.params.id);
+    if (!run) return sendApiError(res, 404, 'VKEN_NOT_FOUND', 'vken run not found');
+    try {
+      const context = hydrateVkenRunContext(run);
+      if (!run.vfs) run.vfs = initVirtualFs(context.workspacePath);
+      const raw = req.body?.checkpoint;
+      const checkpoint = raw === 'initial' ? 'initial' : { patchId: cleanString(raw?.patchId) };
+      if (checkpoint !== 'initial' && !checkpoint.patchId) {
+        return sendApiError(res, 400, 'BAD_REQUEST', 'checkpoint is invalid');
+      }
+      const ok = scrubTo(run.vfs, checkpoint);
+      if (!ok) return sendApiError(res, 404, 'VKEN_NOT_FOUND', 'checkpoint not found');
+      let previewUrl = null;
+      try {
+        if (run.previewServer) await run.previewServer.kill();
+        run.previewServer = await startVkenPreview({
+          session: run.vfs,
+          runDir: context.runDir,
+          checkpoint: checkpoint === 'initial' ? 'initial' : checkpoint.patchId,
+        });
+        previewUrl = run.previewServer.url;
+      } catch (error) {
+        console.warn(`[vken:preview] ${error instanceof Error ? error.message : String(error)}`);
+      }
+      const score = scoreVkenIndex(context.index, {
+        designQuality: checkpoint === 'initial' ? context.scoreDesignQuality : Math.min(1, (context.scoreDesignQuality ?? 0.5) + 0.04),
+        when: 'scrub',
+      });
+      vken.runs.emit(run, 'vken:apply', {
+        patchId: checkpoint === 'initial' ? 'initial' : checkpoint.patchId,
+        ok: true,
+        previewUrl,
+        scoreDelta: checkpoint === 'initial' ? 0 : 0.3,
+        pixelDeltaToInitial: checkpoint === 'initial' ? 0 : 0.04,
+      });
+      vken.runs.emit(run, 'vken:score', score);
+      res.json({ scoreAt: score.value, pixelDeltaToInitial: checkpoint === 'initial' ? 0 : 0.04 });
+    } catch (err) {
+      sendApiError(res, 500, 'INTERNAL_ERROR', err instanceof Error ? err.message : String(err));
+    }
+  });
+
+  app.post('/api/vken/runs/:id/finalize', async (req, res) => {
+    const run = vken.runs.get(req.params.id);
+    if (!run) return sendApiError(res, 404, 'VKEN_NOT_FOUND', 'vken run not found');
+    if (run.prUrl && run.bundleUrl) {
+      return res.json({
+        prUrl: run.prUrl,
+        bundleUrl: run.bundleUrl,
+        scorecardUrl: run.scorecardUrl,
+        scoreBefore: run.scoreInitial ?? 0,
+        scoreAfter: run.scoreFinal ?? run.scoreInitial ?? 0,
+      });
+    }
+    try {
+      const context = hydrateVkenRunContext(run);
+      if (!run.vfs) run.vfs = initVirtualFs(context.workspacePath);
+      const finalDir = ensurePreviewWorkspace({
+        session: run.vfs,
+        runDir: context.runDir,
+        checkpoint: 'final',
+      });
+      const validation = await validateMaterializedWorkspace({
+        runId: run.id,
+        workspaceDir: finalDir,
+        db,
+        service: vken.runs,
+        run,
+      });
+      const patches = loadVkenPatches(run.id).filter((patch) => patch.status === 'applied');
+      const scoreBefore = run.scoreInitial ?? context.scoreInitial ?? 0;
+      const scoreAfter = run.scoreFinal ?? Math.max(scoreBefore, scoreBefore + patches.length * 0.4);
+      const scorecard = { runId: run.id, scoreBefore, scoreAfter, validation, patches };
+      const scorecardPath = path.join(context.runDir, 'scorecard.json');
+      fs.writeFileSync(scorecardPath, JSON.stringify(scorecard, null, 2));
+      const bundlePath = await writeVkenBundle({
+        materializedDir: finalDir,
+        outFile: path.join(context.runDir, 'bundle.zip'),
+        scorecard,
+        patches,
+      });
+      run.bundlePath = bundlePath;
+      run.bundleUrl = `/api/vken/runs/${encodeURIComponent(run.id)}/bundle.zip`;
+      run.scorecardUrl = `/api/vken/runs/${encodeURIComponent(run.id)}/scorecard.json`;
+      let committedRules = [];
+      if (validation.ok) {
+        committedRules = kb.commit({ db, runId: run.id });
+        for (const rule of committedRules) {
+          vken.runs.emit(run, 'vken:learn', {
+            ruleId: rule.id,
+            ruleText: rule.rule_text,
+            evidenceRunIds: rule.evidence_runs,
+            status: 'accepted',
+          });
+        }
+        vken.runs.emit(run, 'vken:learn', { done: true });
+      } else {
+        kb.unstage({ db, runId: run.id });
+      }
+      let prUrl = run.bundleUrl;
+      try {
+        prUrl = await createVkenPullRequest({
+          runId: run.id,
+          sampleId: run.sampleId ?? 'url',
+          materializedDir: finalDir,
+          scoreBefore,
+          scoreAfter,
+          directionName: loadVkenDirection(run.directionPicked, run.id)?.name ?? 'Unspecified',
+          patches,
+          bundleUrl: run.bundleUrl,
+          replayUrl: `/vken/run/${encodeURIComponent(run.id)}`,
+        });
+      } catch (error) {
+        console.warn(`[vken:pr] bundle fallback: ${error instanceof Error ? error.message : String(error)}`);
+      }
+      run.prUrl = prUrl;
+      run.scoreFinal = scoreAfter;
+      const endedAt = Date.now();
+      run.endedAt = endedAt;
+      db.prepare(
+        `UPDATE vken_runs
+            SET status = 'succeeded', ended_at = ?, score_final = ?, pr_url = ?, bundle_path = ?
+          WHERE id = ?`,
+      ).run(endedAt, scoreAfter, prUrl, bundlePath, run.id);
+      vken.runs.emit(run, 'vken:finalize', {
+        prUrl,
+        bundleUrl: run.bundleUrl,
+        scorecardUrl: run.scorecardUrl,
+      });
+      if (run.previewServer) {
+        await run.previewServer.kill();
+        run.previewServer = null;
+      }
+      vken.runs.finish(run, 'succeeded');
+      res.json({ prUrl, bundleUrl: run.bundleUrl, scorecardUrl: run.scorecardUrl, scoreBefore, scoreAfter });
+    } catch (err) {
+      sendApiError(res, 500, 'INTERNAL_ERROR', err instanceof Error ? err.message : String(err));
+    }
+  });
+
+  app.get('/api/vken/runs/:id/bundle.zip', (req, res) => {
+    const run = vken.runs.get(req.params.id);
+    const bundlePath =
+      run?.bundlePath ??
+      db.prepare(`SELECT bundle_path AS bundlePath FROM vken_runs WHERE id = ?`).get(req.params.id)?.bundlePath;
+    if (!bundlePath || !fs.existsSync(bundlePath)) {
+      return sendApiError(res, 404, 'VKEN_NOT_FOUND', 'bundle not found');
+    }
+    res.download(bundlePath, `vken-${req.params.id}.zip`);
+  });
+
+  app.get('/api/vken/runs/:id/scorecard.json', (req, res) => {
+    const run = vken.runs.get(req.params.id);
+    const file = path.join(run?.runDir ?? path.join(RUNTIME_DATA_DIR, 'vken', 'runs', req.params.id), 'scorecard.json');
+    if (!fs.existsSync(file)) return sendApiError(res, 404, 'VKEN_NOT_FOUND', 'scorecard not found');
+    res.sendFile(file);
+  });
+
+  app.get('/api/vken/provider/info', (req, res) => {
+    res.json(providerInfo({ byok: req.byok }));
+  });
+
+  app.post('/api/vken/llm/test', async (req, res) => {
+    const startedAt = Date.now();
+    try {
+      const info = providerInfo({ byok: req.byok });
+      await chatCoder(
+        [
+          { role: 'system', content: 'Respond with one JSON object only.' },
+          { role: 'user', content: '{"ok":true}' },
+        ],
+        undefined,
+        { byok: req.byok, phase: 'test', maxTokens: 16 },
+      );
+      res.json({ ok: true, provider: info.id, model: info.coderModel, latencyMs: Date.now() - startedAt });
+    } catch (error) {
+      res.status(400).json({
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+        latencyMs: Date.now() - startedAt,
+      });
+    }
+  });
+
+  app.get('/api/vken/kb', (_req, res) => {
+    const rows = db
+      .prepare(
+        `SELECT id, finding_type AS findingType, framework, severity, rule_text AS ruleText,
+                accept_count AS acceptCount, reject_count AS rejectCount,
+                avg_score_delta AS avgScoreDelta, evidence_runs AS evidenceRuns,
+                updated_at AS updatedAt
+           FROM vken_kb_rules
+          ORDER BY accept_count DESC, updated_at DESC
+          LIMIT 100`,
+      )
+      .all()
+      .map((row) => ({
+        ...row,
+        evidenceRuns: JSON.parse(row.evidenceRuns || '[]'),
+      }));
+    res.json({ rules: rows, generatedAt: Date.now() });
+  });
+
+  app.get('/api/vken/kb/:ruleId', (req, res) => {
+    const row = db
+      .prepare(
+        `SELECT id, finding_type AS findingType, framework, severity, rule_text AS ruleText,
+                accept_count AS acceptCount, reject_count AS rejectCount,
+                avg_score_delta AS avgScoreDelta, evidence_runs AS evidenceRuns,
+                signature, created_at AS createdAt, updated_at AS updatedAt
+           FROM vken_kb_rules
+          WHERE id = ?`,
+      )
+      .get(req.params.ruleId);
+    if (!row) return sendApiError(res, 404, 'VKEN_NOT_FOUND', 'KB rule not found');
+    const examples = db
+      .prepare(`SELECT * FROM vken_kb_examples WHERE rule_id = ? ORDER BY created_at DESC LIMIT 20`)
+      .all(req.params.ruleId);
+    res.json({ rule: { ...row, evidenceRuns: JSON.parse(row.evidenceRuns || '[]') }, examples });
+  });
+
+  app.get('/api/vken/leaderboard', (_req, res) => {
+    const rows = db
+      .prepare(
+        `SELECT vt.source_ref AS sampleId,
+                'default' AS scenarioId,
+                MAX(COALESCE(vr.score_final, vr.score_initial, 0) - COALESCE(vr.score_initial, 0)) AS bestScoreDelta,
+                vr.id AS bestRunId,
+                COUNT(*) AS attempts
+           FROM vken_runs vr
+           JOIN vken_targets vt ON vt.id = vr.target_id
+          WHERE vt.source = 'sample'
+          GROUP BY vt.source_ref
+          ORDER BY bestScoreDelta DESC`,
+      )
+      .all();
+    res.json({ rows, generatedAt: Date.now() });
+  });
+
+  app.get('/api/vken/captures/:captureId/screenshot.png', (req, res) => {
+    const row = db
+      .prepare(`SELECT screenshot_path AS screenshotPath FROM vken_captures WHERE id = ?`)
+      .get(req.params.captureId);
+    if (!row?.screenshotPath) {
+      return sendApiError(res, 404, 'VKEN_NOT_FOUND', 'capture not found');
+    }
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.sendFile(row.screenshotPath);
+  });
+
+  function hydrateVkenRunContext(run) {
+    const row = db
+      .prepare(
+        `SELECT vr.score_initial AS scoreInitial,
+                vt.workspace_path AS workspacePath,
+                vt.source_ref AS sourceRef,
+                vt.source AS source
+           FROM vken_runs vr
+           JOIN vken_targets vt ON vt.id = vr.target_id
+          WHERE vr.id = ?`,
+      )
+      .get(run.id);
+    if (!row && !run.workspacePath) throw new Error('run context not ready yet');
+    const workspacePath = run.workspacePath ?? row.workspacePath;
+    const runDir = run.runDir ?? path.join(RUNTIME_DATA_DIR, 'vken', 'runs', run.id);
+    const indexPath = path.join(runDir, 'workspace-index.json');
+    const index =
+      run.index ??
+      (fs.existsSync(indexPath)
+        ? JSON.parse(fs.readFileSync(indexPath, 'utf8'))
+        : null);
+    if (!index) throw new Error('workspace index not ready yet');
+    run.workspacePath = workspacePath;
+    run.runDir = runDir;
+    run.index = index;
+    run.sampleId = run.sampleId ?? (row?.source === 'sample' ? row.sourceRef : undefined);
+    const scoreInitial = run.scoreInitial ?? row?.scoreInitial ?? 0;
+    return {
+      workspacePath,
+      runDir,
+      index,
+      scoreInitial,
+      scoreDesignQuality: index?.tokens?.coverageRatio ? Math.min(1, 0.45 + index.tokens.coverageRatio * 0.2) : 0.5,
+    };
+  }
+
+  function loadVkenDirection(directionId, runId) {
+    if (!directionId) return null;
+    const row = db
+      .prepare(
+        `SELECT id, name, mood, summary, changes_json AS changesJson,
+                effort, risk, evidence_kb_ids AS evidenceKbIds
+           FROM vken_directions
+          WHERE id = ? AND run_id = ?`,
+      )
+      .get(directionId, runId);
+    if (!row) return null;
+    return {
+      id: row.id,
+      name: row.name,
+      mood: row.mood,
+      summary: row.summary,
+      changes: JSON.parse(row.changesJson || '[]'),
+      effort: row.effort,
+      risk: row.risk,
+      evidenceKbIds: JSON.parse(row.evidenceKbIds || '[]'),
+    };
+  }
+
+  function loadVkenPatch(runId, patchId) {
+    const row = db
+      .prepare(
+        `SELECT id, finding_ids AS findingIds, file_path AS filePath, format,
+                hunks_json AS hunksJson, rationale, severity, impact, risk,
+                effort, confidence, patchable, evidence_kb_ids AS evidenceKbIds, status
+           FROM vken_patches
+          WHERE run_id = ? AND id = ?`,
+      )
+      .get(runId, patchId);
+    return row ? parseVkenPatchRow(row) : null;
+  }
+
+  function loadVkenPatches(runId) {
+    return db
+      .prepare(
+        `SELECT id, finding_ids AS findingIds, file_path AS filePath, format,
+                hunks_json AS hunksJson, rationale, severity, impact, risk,
+                effort, confidence, patchable, evidence_kb_ids AS evidenceKbIds, status
+           FROM vken_patches
+          WHERE run_id = ?
+          ORDER BY created_at`,
+      )
+      .all(runId)
+      .map(parseVkenPatchRow);
+  }
+
+  function parseVkenPatchRow(row) {
+    return {
+      id: row.id,
+      findingIds: JSON.parse(row.findingIds || '[]'),
+      filePath: row.filePath,
+      format: row.format,
+      hunks: JSON.parse(row.hunksJson || '[]'),
+      rationale: row.rationale,
+      severity: row.severity,
+      impact: row.impact,
+      risk: row.risk,
+      effort: row.effort,
+      confidence: row.confidence,
+      patchable: row.patchable,
+      evidenceKbIds: JSON.parse(row.evidenceKbIds || '[]'),
+      status: row.status,
+    };
+  }
 
   app.get('/api/runs', (req, res) => {
     const { projectId, conversationId, status } = req.query;
@@ -3616,7 +4172,7 @@ function assembleExample(templateHtml, slidesHtml, title) {
     .replace('<!-- SLIDES_HERE -->', slidesHtml)
     .replace(
       /<title>.*?<\/title>/,
-      `<title>${title} | Open Design Example</title>`,
+      `<title>${title} | VKEN Design Engine Example</title>`,
     );
 }
 

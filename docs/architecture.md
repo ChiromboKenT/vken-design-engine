@@ -242,8 +242,8 @@ Rationale:
 
 | File | Purpose |
 |---|---|
-| `~/.open-design/config.toml` | daemon-global: default agent preference, keys (optional, BYOK), telemetry opt-in (default off) |
-| `~/.open-design/agents.json` | cached agent detection results |
+| `~/.vken/config.toml` | daemon-global: default agent preference, keys (optional, BYOK), telemetry opt-in (default off) |
+| `~/.vken/agents.json` | cached agent detection results |
 | `./.od/config.json` | project-local: active design system, preferred skills, preferred mode |
 | `./skills/<skill>/SKILL.md` | skill manifest (standard Claude Code format) |
 | `./DESIGN.md` | active design system ([awesome-claude-design][acd] format) |
@@ -287,7 +287,7 @@ When a reverse proxy sits in front of the daemon, `/api/*` includes SSE streams 
 services:
   daemon:
     image: openclaudedesign/daemon
-    volumes: [ "~/.open-design:/root/.open-design", "./:/workspace" ]
+    volumes: [ "~/.vken:/root/.vken", "./:/workspace" ]
     ports: ["7456:7456"]
   web:
     image: openclaudedesign/web

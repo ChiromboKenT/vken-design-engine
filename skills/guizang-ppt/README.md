@@ -1,7 +1,5 @@
 # Magazine Web PPT · 电子杂志风网页 PPT Skill
 
-> 🌏 **English version: [README.en.md](./README.en.md)**
-
 一个 [Claude Code / Claude Agent Skills](https://agentskills.io/) 技能,用于生成**单文件 HTML 横向翻页 PPT**,视觉基调是"**电子杂志 × 电子墨水**"——像 *Monocle* 贴上了代码的样子。
 
 > 由 [歸藏](https://x.com/op7418) 在"一人公司:被 AI 折叠的组织"、"一种新的工作方式"等线下分享中沉淀而成,踩过的每一个坑都写进了 `checklist.md`。

@@ -9,7 +9,7 @@
   ],
   "exports": {
     "./main": {
-      "types": "./dist/main/index.d.ts",
+      "types": "./src/main/index.ts",
       "default": "./dist/main/index.js"
     }
   },

@@ -37,13 +37,13 @@ export const ko: Dict = {
   'common.daysShort': '{n}일',
   'common.untitled': '제목 없음',
 
-  'app.brand': 'Open Design',
+  'app.brand': 'VKEN Design Engine',
   'app.brandPill': 'Research Preview',
   'app.brandSubtitle': 'by Nexu Labs',
   'app.welcomeLoading': '워크스페이스를 불러오는 중…',
 
   'settings.welcomeKicker': '환영합니다',
-  'settings.welcomeTitle': 'Open Design 설정',
+  'settings.welcomeTitle': 'VKEN Design Engine 설정',
   'settings.welcomeSubtitle':
     "생성을 실행할 방법을 선택하세요. 상단 바의 Settings 버튼을 통해 언제든지 변경할 수 있습니다.",
   'settings.kicker': '설정',
@@ -696,7 +696,7 @@ export const ko: Dict = {
 
   'pet.title': '펫',
   'pet.tabBuiltIn': '내장',
-  'pet.tabBuiltInHint': 'Open Design에 기본 포함된 친구들 — 골라서 입양하세요.',
+  'pet.tabBuiltInHint': 'VKEN Design Engine에 기본 포함된 친구들 — 골라서 입양하세요.',
   'pet.builtInEmpty': '지금은 기본 제공 펫을 불러올 수 없어요. 데몬이 다시 켜지면 커뮤니티 탭을 새로고침해 주세요.',
   'pet.tabCustom': '커스텀',
   'pet.tabCustomHint': '이름·글리프·색상·스프라이트를 직접 정해 보세요.',
@@ -801,7 +801,7 @@ export const ko: Dict = {
   'pet.communitySyncDone': '신규 펫 {wrote} 마리 동기화됨 (총 {total} 마리).',
   'pet.communitySyncFailed': '동기화 실패: {error}',
   'pet.codexBundled': '내장',
-  'pet.codexBundledTitle': 'Open Design 에 내장 — 다운로드 불필요.',
+  'pet.codexBundledTitle': 'VKEN Design Engine 에 내장 — 다운로드 불필요.',
 
   'settings.notifications': '알림',
   'settings.notificationsHint': '작업 완료 시 효과음 및 데스크톱 알림',

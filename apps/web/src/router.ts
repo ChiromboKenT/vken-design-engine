@@ -7,11 +7,20 @@ import { useEffect, useState } from 'react';
 
 export type Route =
   | { kind: 'home' }
-  | { kind: 'project'; projectId: string; fileName: string | null };
+  | { kind: 'project'; projectId: string; fileName: string | null }
+  | { kind: 'vken'; runId: string | null; page: 'home' | 'leaderboard' | 'kb' };
 
 export function parseRoute(pathname: string): Route {
   const parts = pathname.replace(/\/+$/, '').split('/').filter(Boolean);
   if (parts.length === 0) return { kind: 'home' };
+  if (parts[0] === 'vken') {
+    if (parts[1] === 'run' && parts[2]) {
+      return { kind: 'vken', runId: decodeURIComponent(parts[2]), page: 'home' };
+    }
+    if (parts[1] === 'leaderboard') return { kind: 'vken', runId: null, page: 'leaderboard' };
+    if (parts[1] === 'kb') return { kind: 'vken', runId: null, page: 'kb' };
+    return { kind: 'vken', runId: null, page: 'home' };
+  }
   if (parts[0] === 'projects' && parts[1]) {
     const projectId = decodeURIComponent(parts[1]);
     if (parts[2] === 'files' && parts[3]) {
@@ -28,6 +37,12 @@ export function parseRoute(pathname: string): Route {
 
 export function buildPath(route: Route): string {
   if (route.kind === 'home') return '/';
+  if (route.kind === 'vken') {
+    if (route.runId) return `/vken/run/${encodeURIComponent(route.runId)}`;
+    if (route.page === 'leaderboard') return '/vken/leaderboard';
+    if (route.page === 'kb') return '/vken/kb';
+    return '/vken';
+  }
   const id = encodeURIComponent(route.projectId);
   if (route.fileName) {
     const file = route.fileName

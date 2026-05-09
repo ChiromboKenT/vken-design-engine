@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "pnpm@10.33.2",
   "type": "module",
-  "description": "Local-first design product: detects your installed code-agent CLI, runs design skills + design systems, streams artifacts into a sandboxed preview.",
+  "description": "VKEN Design Engine: AI design repair for real codebases with neuroinclusive review standards.",
   "license": "Apache-2.0",
   "bin": {
     "od": "./apps/daemon/dist/cli.js"
@@ -13,6 +13,7 @@
     "postinstall": "node ./scripts/postinstall.mjs",
     "tools-dev": "pnpm exec tools-dev",
     "tools-pack": "pnpm exec tools-pack",
+    "od:samples": "node samples/install-all.mjs",
     "build": "pnpm --filter @open-design/web build",
     "check:residual-js": "node --experimental-strip-types scripts/check-residual-js.ts",
     "sync:community-pets": "node --experimental-strip-types scripts/sync-community-pets.ts",

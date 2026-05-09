@@ -37,13 +37,13 @@ export const esES: Dict = {
   'common.daysShort': '{n} d',
   'common.untitled': 'Sin título',
 
-  'app.brand': 'Open Design',
+  'app.brand': 'VKEN Design Engine',
   'app.brandPill': 'Vista previa de investigación',
   'app.brandSubtitle': 'por Nexu Labs',
   'app.welcomeLoading': 'Cargando espacio de trabajo…',
 
   'settings.welcomeKicker': 'Bienvenido',
-  'settings.welcomeTitle': 'Configura Open Design',
+  'settings.welcomeTitle': 'Configura VKEN Design Engine',
   'settings.welcomeSubtitle':
     'Elige cómo quieres ejecutar las generaciones. Puedes cambiarlo en cualquier momento desde el botón Ajustes en la barra superior.',
   'settings.kicker': 'Ajustes',
@@ -697,7 +697,7 @@ export const esES: Dict = {
 
   'pet.title': 'Mascotas',
   'pet.tabBuiltIn': 'Integradas',
-  'pet.tabBuiltInHint': 'Compañeros incluidos con Open Design — elige uno y adóptalo.',
+  'pet.tabBuiltInHint': 'Compañeros incluidos con VKEN Design Engine — elige uno y adóptalo.',
   'pet.builtInEmpty': 'Las mascotas integradas no están disponibles ahora. Actualiza la pestaña Comunidad cuando el daemon vuelva a estar en línea.',
   'pet.tabCustom': 'Personalizada',
   'pet.tabCustomHint': 'Pon nombre, glifo, color o sube un sprite.',
@@ -802,7 +802,7 @@ export const esES: Dict = {
   'pet.communitySyncDone': '{wrote} mascotas nuevas sincronizadas ({total} en total).',
   'pet.communitySyncFailed': 'Error al sincronizar: {error}',
   'pet.codexBundled': 'Incluida',
-  'pet.codexBundledTitle': 'Viene con Open Design — sin descarga.',
+  'pet.codexBundledTitle': 'Viene con VKEN Design Engine — sin descarga.',
 
   'settings.notifications': 'Notificaciones',
   'settings.notificationsHint': 'Sonido y notificación al completar la tarea',

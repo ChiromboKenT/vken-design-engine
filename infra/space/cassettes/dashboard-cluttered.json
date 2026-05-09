@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "sampleId": "dashboard-cluttered",
+  "calls": [
+    {
+      "task": "vl",
+      "phase": "critique",
+      "response": {
+        "designQuality": 0.37,
+        "findings": [
+          {
+            "dimension": "hierarchy",
+            "severity": "P1",
+            "description": "Reduce competing metric cards and clarify the most urgent operational status.",
+            "regionBox": { "x": 20, "y": 150, "w": 1200, "h": 520 }
+          },
+          {
+            "dimension": "contrast",
+            "severity": "P2",
+            "description": "Increase badge and note contrast so scan states are legible.",
+            "regionBox": { "x": 80, "y": 320, "w": 900, "h": 300 }
+          },
+          {
+            "dimension": "spacing",
+            "severity": "P2",
+            "description": "Use one spacing rhythm for dashboard cards and workbench rows.",
+            "regionBox": { "x": 16, "y": 260, "w": 1260, "h": 520 }
+          },
+          {
+            "dimension": "neuroinclusive",
+            "severity": "P1",
+            "description": "Reduce dashboard density so urgent status, recovery path, and next action are clear.",
+            "regionBox": { "x": 20, "y": 150, "w": 1200, "h": 520 }
+          }
+        ]
+      },
+      "usage": { "inputTokens": 1250, "outputTokens": 270 }
+    },
+    {
+      "task": "coder",
+      "phase": "directions",
+      "response": {
+        "directions": [
+          {
+            "id": "dashboard-priority",
+            "name": "Dashboard priority",
+            "mood": "Focused operations",
+            "summary": "Make one metric tier dominant and demote supporting controls.",
+            "changes": ["Group critical metrics", "Reduce button prominence", "Normalize card radius"],
+            "effort": "medium",
+            "risk": "low",
+            "evidenceKbIds": ["seed-dashboard-density"]
+          },
+          {
+            "id": "status-readability",
+            "name": "Status readability",
+            "mood": "Clearer triage",
+            "summary": "Improve badge contrast and row rhythm for faster scanning.",
+            "changes": ["Improve badge contrast", "Align queue rows", "Unify surface colors"],
+            "effort": "low",
+            "risk": "low",
+            "evidenceKbIds": ["seed-status-contrast"]
+          }
+        ]
+      },
+      "usage": { "inputTokens": 920, "outputTokens": 250 }
+    },
+    {
+      "task": "coder",
+      "phase": "patches",
+      "response": { "patches": [] },
+      "usage": { "inputTokens": 1600, "outputTokens": 500 }
+    }
+  ]
+}

@@ -6,13 +6,13 @@ records module-level boundaries for `apps/landing-page/`.
 ## Purpose
 
 `apps/landing-page` is a stand-alone static Astro site that renders
-the canonical Open Design marketing page in the **Atelier Zero** style.
+the canonical VKEN Design Engine marketing page in the **Atelier Zero** style.
 It is the deployable counterpart to:
 
-- Skill: `skills/open-design-landing/` — agent workflow + the source-of-truth
+- Skill: `skills/vken-landing/` — agent workflow + the source-of-truth
   `example.html` known-good rendering.
 - Design system: `design-systems/atelier-zero/DESIGN.md` — token spec.
-- Image assets: `skills/open-design-landing/assets/*.png` are uploaded to
+- Image assets: `skills/vken-landing/assets/*.png` are uploaded to
   Cloudflare R2 (`open-design-static`) and served through
   `static.open-design.ai` with Image Resizing (`format=auto`). Do not
   commit local mirrored PNGs into `apps/landing-page/public/assets/`.
@@ -52,7 +52,7 @@ It is the deployable counterpart to:
   `app/`. If a component grows beyond ~80 lines, extract it to
   `app/_components/<name>.tsx`.
 - Must not depend on any non-Google web font.
-- When the canonical `skills/open-design-landing/example.html` changes,
+- When the canonical `skills/vken-landing/example.html` changes,
   the corresponding section JSX in `app/page.tsx` and rules in
   `app/globals.css` must be updated to match. The two files are kept
   in lockstep.
@@ -70,5 +70,5 @@ pnpm --filter @open-design/landing-page typecheck
 - New section added to the canonical landing page → port it here.
 - Asset regeneration in the skill → re-mirror PNGs into
   `public/assets/`.
-- Brand re-keying for a non-Open-Design tenant → fork the app, update
+- Brand re-keying for another tenant → fork the app, update
   copy, swap PNGs. Do not parameterize this app for multi-tenancy.

@@ -29,8 +29,8 @@ import { copyBundledResourceTrees, linuxResources } from "./resources.js";
 
 const execFileAsync = promisify(execFile);
 
-const PRODUCT_NAME = "Open Design";
-const APP_IMAGE_PRODUCT_NAME = "Open-Design";
+const PRODUCT_NAME = "VKEN Design Engine";
+const APP_IMAGE_PRODUCT_NAME = "VKEN-Design-Engine";
 const DESKTOP_LOG_ECHO_ENV = "OD_DESKTOP_LOG_ECHO";
 
 const INTERNAL_PACKAGES = [
@@ -71,13 +71,23 @@ type DockerUserMapping = {
   gid: number;
 };
 
+function dockerHostPath(value: string): string {
+  return value.replace(/\\/g, "/");
+}
+
+function dockerHostJoin(root: string, ...parts: string[]): string {
+  return dockerHostPath([root.replace(/[\\/]+$/, ""), ...parts].join("/"));
+}
+
 export function buildDockerArgs(
   config: ToolPackConfig,
   user: DockerUserMapping,
 ): string[] {
-  const dockerHome = join(config.roots.toolPackRoot, ".docker-home");
-  const electronCache = join(config.roots.toolPackRoot, ".docker-cache", "electron");
-  const electronBuilderCache = join(config.roots.toolPackRoot, ".docker-cache", "electron-builder");
+  const workspaceRoot = dockerHostPath(config.workspaceRoot);
+  const toolPackRoot = dockerHostPath(config.roots.toolPackRoot);
+  const dockerHome = dockerHostJoin(config.roots.toolPackRoot, ".docker-home");
+  const electronCache = dockerHostJoin(config.roots.toolPackRoot, ".docker-cache", "electron");
+  const electronBuilderCache = dockerHostJoin(config.roots.toolPackRoot, ".docker-cache", "electron-builder");
 
   // The tool-pack root is mounted at a fixed container path so the inner build
   // can be told where to write output via `--dir /tools-pack`. Without this
@@ -119,9 +129,9 @@ export function buildDockerArgs(
     "--user",
     `${user.uid}:${user.gid}`,
     "-v",
-    `${config.workspaceRoot}:/project`,
+    `${workspaceRoot}:/project`,
     "-v",
-    `${config.roots.toolPackRoot}:/tools-pack`,
+    `${toolPackRoot}:/tools-pack`,
     "-v",
     `${dockerHome}:/home/builder`,
     "-v",
@@ -410,8 +420,8 @@ async function writeLinuxBuilderConfig(config: ToolPackConfig, paths: LinuxPaths
       target,
       icon: linuxResources.icon,
       category: "Development",
-      synopsis: "Open Design",
-      maintainer: "Open Design Contributors",
+      synopsis: "VKEN Design Engine",
+      maintainer: "VKEN Design Engine Contributors",
     },
     nodeGypRebuild: false,
     npmRebuild: false,

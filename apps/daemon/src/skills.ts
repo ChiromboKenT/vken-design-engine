@@ -17,8 +17,10 @@ import { SKILLS_CWD_ALIAS } from "./cwd-aliases.js";
 // here for at least one stable release after a rename so on-disk projects
 // keep composing with the intended skill prompt.
 export const SKILL_ID_ALIASES = Object.freeze({
-  "editorial-collage": "open-design-landing",
-  "editorial-collage-deck": "open-design-landing-deck",
+  "open-design-landing": "vken-landing",
+  "open-design-landing-deck": "vken-landing-deck",
+  "editorial-collage": "vken-landing",
+  "editorial-collage-deck": "vken-landing-deck",
 });
 
 export function resolveSkillId(id) {

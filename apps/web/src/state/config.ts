@@ -12,7 +12,8 @@ import {
   DEFAULT_SUCCESS_SOUND_ID,
 } from '../utils/notifications';
 
-const STORAGE_KEY = 'open-design:config';
+const STORAGE_KEY = 'vken:config';
+const LEGACY_STORAGE_KEY = 'open-design:config';
 const CONFIG_MIGRATION_VERSION = 1;
 
 // Hatched out of the box, but tucked away — the user has to go through
@@ -214,7 +215,7 @@ function inferApiProtocol(model: string, baseUrl: string): ApiProtocol {
 
 export function loadConfig(): AppConfig {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) {
       return {
         ...DEFAULT_CONFIG,

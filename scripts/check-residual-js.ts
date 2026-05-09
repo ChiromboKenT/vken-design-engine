@@ -33,7 +33,17 @@ const allowedExactPaths = new Set([
   "scripts/postinstall.mjs",
   "apps/packaged/esbuild.config.mjs",
   // Browser service workers must be served as JavaScript files.
-  "apps/web/public/od-notifications-sw.js",
+  "apps/web/public/vken-notifications-sw.js",
+  // Space invokes this directly as a Node compatibility harness.
+  "infra/space/smoke.mjs",
+  "infra/space/smoke-coder.mjs",
+  "infra/space/smoke-vl.mjs",
+  // Vite/PostCSS sample compatibility config and direct Node installer used
+  // by the Hugging Face Space build, intentionally kept as JavaScript.
+  "samples/install-all.mjs",
+  "samples/dashboard-cluttered/postcss.config.js",
+  "samples/ecommerce-basic/postcss.config.js",
+  "samples/landing-generic/postcss.config.js",
   "scripts/bake-html-ppt-examples.mjs",
   "scripts/scaffold-html-ppt-skills.mjs",
   "scripts/sync-hyperframes-skill.mjs",

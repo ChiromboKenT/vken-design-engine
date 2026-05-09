@@ -5,7 +5,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { heroImage } from '../image-assets';
 
-const title = 'Open Design — Design with the agent already on your laptop.';
+const title = 'VKEN Design Engine — Design with the agent already on your laptop.';
 const description =
   'The open-source alternative to Claude Design. Your existing coding agent — Claude · Codex · Cursor · Gemini · OpenCode · Qwen — becomes the design engine, driven by 31 composable skills and 72 brand-grade design systems.';
 const canonical = new URL(Astro.url.pathname, Astro.site).toString();
@@ -23,7 +23,7 @@ const pageHtml = renderToStaticMarkup(createElement(Page));
     <link rel="canonical" href={canonical} />
 
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Open Design" />
+    <meta property="og:site_name" content="VKEN Design Engine" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
@@ -45,13 +45,13 @@ const pageHtml = renderToStaticMarkup(createElement(Page));
         };
 
         // Pull a clean 'v0.3.0'-style label from a GitHub release record.
-        // We prefer release.name (e.g. 'Open Design 0.3.0') because that's
+        // We prefer release.name (e.g. 'VKEN Design Engine 0.3.0') because that's
         // what we hand-author; fall back to tag_name (e.g.
         // 'open-design-v0.3.0') with the project prefix stripped.
         //
         // Expected input shapes (release.name / release.tag_name):
-        //   { name: 'Open Design 0.3.0',  tag_name: 'v0.3.0' }            → 'v0.3.0'
-        //   { name: 'Open Design v0.3.0', tag_name: 'open-design-v0.3.0' } → 'v0.3.0'
+        //   { name: 'VKEN Design Engine 0.3.0',  tag_name: 'v0.3.0' }            → 'v0.3.0'
+        //   { name: 'VKEN Design Engine v0.3.0', tag_name: 'open-design-v0.3.0' } → 'v0.3.0'
         //   { name: '0.3.0-beta.1',       tag_name: 'open-design_0.3.0' }  → 'v0.3.0-beta.1' (name wins)
         //   { name: null,                 tag_name: 'open-design-v0.3.0' } → 'v0.3.0' (tag fallback)
         //   { name: null,                 tag_name: null }                  → null (caller skips)

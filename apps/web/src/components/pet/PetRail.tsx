@@ -24,12 +24,13 @@ interface Props {
   onHide?: () => void;
 }
 
-const COLLAPSED_KEY = 'open-design:pet-rail-collapsed';
+const COLLAPSED_KEY = 'vken:pet-rail-collapsed';
+const LEGACY_COLLAPSED_KEY = 'open-design:pet-rail-collapsed';
 
 function loadCollapsed(): boolean {
   if (typeof window === 'undefined') return false;
   try {
-    return window.localStorage.getItem(COLLAPSED_KEY) === '1';
+    return (window.localStorage.getItem(COLLAPSED_KEY) ?? window.localStorage.getItem(LEGACY_COLLAPSED_KEY)) === '1';
   } catch {
     return false;
   }

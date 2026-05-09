@@ -37,13 +37,13 @@ export const ru: Dict = {
   'common.daysShort': '{n}д',
   'common.untitled': 'Без названия',
 
-  'app.brand': 'Open Design',
+  'app.brand': 'VKEN Design Engine',
   'app.brandPill': 'Предварительная исследовательская версия',
   'app.brandSubtitle': 'от Nexu Labs',
   'app.welcomeLoading': 'Загрузка рабочего пространства…',
 
   'settings.welcomeKicker': 'Добро пожаловать',
-  'settings.welcomeTitle': 'Настройте Open Design',
+  'settings.welcomeTitle': 'Настройте VKEN Design Engine',
   'settings.welcomeSubtitle':
     'Выберите, как запускать генерации. Вы можете изменить это в любое время через кнопку Настройки в верхней панели.',
   'settings.kicker': 'Настройки',
@@ -695,7 +695,7 @@ export const ru: Dict = {
 
   'pet.title': 'Питомцы',
   'pet.tabBuiltIn': 'Встроенные',
-  'pet.tabBuiltInHint': 'Подобранные питомцы в комплекте Open Design — выберите и забирайте.',
+  'pet.tabBuiltInHint': 'Подобранные питомцы в комплекте VKEN Design Engine — выберите и забирайте.',
   'pet.builtInEmpty': 'Встроенные питомцы сейчас недоступны. Обновите вкладку «Сообщество», когда демон снова запустится.',
   'pet.tabCustom': 'Свой',
   'pet.tabCustomHint': 'Своё имя, глиф, цвет или загруженный спрайт.',
@@ -800,7 +800,7 @@ export const ru: Dict = {
   'pet.communitySyncDone': 'Синхронизировано {wrote} новых питомцев (всего {total}).',
   'pet.communitySyncFailed': 'Ошибка синхронизации: {error}',
   'pet.codexBundled': 'Встроен',
-  'pet.codexBundledTitle': 'Поставляется с Open Design — загрузка не нужна.',
+  'pet.codexBundledTitle': 'Поставляется с VKEN Design Engine — загрузка не нужна.',
 
   'settings.notifications': 'Уведомления',
   'settings.notificationsHint': 'Звук и уведомление при завершении задачи',

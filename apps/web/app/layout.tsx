@@ -4,7 +4,7 @@ import { I18nProvider } from '../src/i18n';
 import '../src/index.css';
 
 export const metadata: Metadata = {
-  title: 'Open Design',
+  title: 'VKEN Design Engine',
   icons: {
     icon: '/app-icon.svg',
     // Safari pinned-tab mask icon — Next.js's Metadata API doesn't have a
@@ -24,7 +24,7 @@ export const viewport: Viewport = {
  * localStorage key used by `state/config.ts` and sets `data-theme` on
  * `<html>` immediately — before any CSS or React paint.
  */
-const themeInitScript = `(function(){try{var t=JSON.parse(localStorage.getItem('open-design:config')||'{}').theme;if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`;
+const themeInitScript = `(function(){try{var raw=localStorage.getItem('vken:config')||localStorage.getItem('open-design:config')||'{}';var t=JSON.parse(raw).theme;if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

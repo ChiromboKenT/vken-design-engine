@@ -49,12 +49,12 @@ describe('deploy file set', () => {
     await writeFile(path.join(dir, 'page.html'), '<!doctype html><body><h1>Hello</h1></body>');
 
     const files = await buildDeployFileSet(projectsRoot, projectId, 'page.html', {
-      hookScriptUrl: 'https://cdn.example.com/open-design-hook.js',
+      hookScriptUrl: 'https://cdn.example.com/vken-hook.js',
     });
     const html = files.find((f) => f.file === 'index.html')?.data.toString('utf8') ?? '';
 
     expect(html).toContain(
-      '<script src="https://cdn.example.com/open-design-hook.js" defer data-open-design-deploy-hook="true" data-closeable="true"></script></body>',
+      '<script src="https://cdn.example.com/vken-hook.js" defer data-vken-deploy-hook="true" data-closeable="true"></script></body>',
     );
   });
 

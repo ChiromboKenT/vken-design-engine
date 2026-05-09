@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { automatedCases } from '../cases';
 import type { UICase } from '../cases/types';
 
-const STORAGE_KEY = 'open-design:config';
+const STORAGE_KEY = 'vken:config';
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript((key) => {

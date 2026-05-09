@@ -8,8 +8,6 @@
 
 **Author:** lewis &lt;sudolewis@gmail.com&gt;
 **License:** MIT
-**中文文档:** [README.zh-CN.md](README.zh-CN.md)
-
 ![html-ppt — cover with live previews](docs/readme/hero.gif)
 
 > One command installs **36 themes × 20 canvas FX × 31 layouts × 15 full decks + presenter mode**. Every preview above is a live iframe of a real template file rendering inside the deck — no screenshots, no mock-ups.

@@ -23,6 +23,13 @@ import type {
   UpdateDeployConfigRequest,
 } from '../types';
 import type { ArtifactManifest } from '../artifacts/types';
+import { byokHeader } from '../state/byok';
+
+export function vkenFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  for (const [key, value] of Object.entries(byokHeader())) headers.set(key, value);
+  return fetch(input, { ...init, headers });
+}
 
 export async function fetchAgents(options?: { throwOnError?: boolean }): Promise<AgentInfo[]> {
   try {

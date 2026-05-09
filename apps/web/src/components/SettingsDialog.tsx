@@ -1181,7 +1181,7 @@ function MediaProvidersSection({
 // Important: every snippet uses absolute paths to `node` and the
 // daemon's built cli.js, fetched from the daemon at runtime. macOS
 // and Linux ship a system /usr/bin/od (octal-dump) that shadows any
-// `od` we might add to PATH, and most Open Design users run from
+// `od` we might add to PATH, and most VKEN Design Engine users run from
 // source where `od` is not installed globally. The installer panel
 // must NOT reference bare `od`.
 type McpClientId =
@@ -1262,7 +1262,7 @@ function buildSharedMcpJson(info: McpInstallInfo): string {
     .join('\n');
   return `{
   "mcpServers": {
-    "open-design": ${innerJson}
+    "vken": ${innerJson}
   }
 }`;
 }
@@ -1282,7 +1282,7 @@ const MCP_CLIENTS: McpClient[] = [
     buildInstruction: () => 'Run this in your terminal.',
     buildSnippet: (info) => {
       const inner = JSON.stringify({ command: info.command, args: info.args });
-      return `claude mcp add-json --scope user open-design '${inner}'`;
+      return `claude mcp add-json --scope user vken '${inner}'`;
     },
     buildSnippetLang: () => 'bash',
   },
@@ -1308,7 +1308,7 @@ const MCP_CLIENTS: McpClient[] = [
       );
       return `Append this table to ${path}. The same config is shared between the Codex CLI and the Codex IDE extension.`;
     },
-    buildSnippet: (info) => `[mcp_servers.open-design]
+    buildSnippet: (info) => `[mcp_servers.vken]
 command = ${JSON.stringify(info.command)}
 args = ${JSON.stringify(info.args)}`,
     buildSnippetLang: () => 'toml',
@@ -1329,7 +1329,7 @@ args = ${JSON.stringify(info.args)}`,
       // non-Latin1 chars in paths (e.g. an accented username) do not
       // throw from btoa().
       const encoded = utf8Btoa(JSON.stringify(inner));
-      return `cursor://anysphere.cursor-deeplink/mcp/install?name=open-design&config=${encoded}`;
+      return `cursor://anysphere.cursor-deeplink/mcp/install?name=vken&config=${encoded}`;
     },
     deeplinkLabel: 'Install in Cursor',
   },
@@ -1341,7 +1341,7 @@ args = ${JSON.stringify(info.args)}`,
       `Open the Command Palette (${commandPaletteShortcut(info.platform)}), run "MCP: Open User Configuration", and merge this JSON. Copilot Chat must be in Agent mode for tools to show up.`,
     buildSnippet: (info) => `{
   "servers": {
-    "open-design": {
+    "vken": {
       "type": "stdio",
       "command": ${JSON.stringify(info.command)},
       "args": ${JSON.stringify(info.args)}
@@ -1367,7 +1367,7 @@ args = ${JSON.stringify(info.args)}`,
       `Open Zed Settings (${settingsShortcut(info.platform)}) and merge this into the top-level object. Zed uses "context_servers", not "mcpServers".`,
     buildSnippet: (info) => `{
   "context_servers": {
-    "open-design": {
+    "vken": {
       "source": "custom",
       "command": ${JSON.stringify(info.command)},
       "args": ${JSON.stringify(info.args)}
@@ -1486,7 +1486,7 @@ function IntegrationsSection() {
           <h3>MCP server</h3>
           <p className="hint">
             Lets a coding agent in another repo (Claude Code, Cursor,
-            VS Code, Antigravity, Zed, Windsurf) read your Open Design
+            VS Code, Antigravity, Zed, Windsurf) read your VKEN Design Engine
             projects. Use it to pull a design into your app without
             exporting a zip first.
           </p>
@@ -1500,7 +1500,7 @@ function IntegrationsSection() {
             style={{ marginBottom: 14, color: 'var(--danger-fg, #f88)' }}
           >
             Couldn&rsquo;t reach the local daemon to resolve install paths
-            ({infoError}). Make sure Open Design is running, then reopen this
+            ({infoError}). Make sure VKEN Design Engine is running, then reopen this
             panel.
           </div>
         ) : null}
@@ -1720,7 +1720,7 @@ function IntegrationsSection() {
               CSS variable, component, and font it references.
             </li>
             <li>
-              Default to the project and file you have open in Open Design,
+              Default to the project and file you have open in VKEN Design Engine,
               so you can say &ldquo;build this in my app&rdquo; without
               re-stating which design.
             </li>
@@ -1735,8 +1735,8 @@ function IntegrationsSection() {
             lineHeight: 1.5,
           }}
         >
-          Open Design must be running for MCP tool calls to succeed. If
-          you started your coding agent before opening Open Design,
+          VKEN Design Engine must be running for MCP tool calls to succeed. If
+          you started your coding agent before opening VKEN Design Engine,
           restart the agent so it can reach the live daemon.
         </p>
       </div>

@@ -11,7 +11,7 @@ import {
   resolveSkillId,
 } from '../src/skills.js';
 
-// Regression coverage for the editorial-collage → open-design-landing rename.
+// Regression coverage for the editorial-collage → vken-landing rename.
 // The daemon persists the chosen skill_id verbatim on a project row and
 // resolves it later by id, so a folder/frontmatter rename without a
 // compatibility shim would silently drop the skill prompt for projects
@@ -25,18 +25,18 @@ beforeAll(async () => {
   // Mimic the on-disk shape the production registry expects: one
   // directory per skill, each with a SKILL.md whose frontmatter `name`
   // becomes the canonical id returned by listSkills().
-  await mkdir(path.join(skillsRoot, 'open-design-landing'), { recursive: true });
+  await mkdir(path.join(skillsRoot, 'vken-landing'), { recursive: true });
   await writeFile(
-    path.join(skillsRoot, 'open-design-landing', 'SKILL.md'),
-    '---\nname: open-design-landing\ndescription: Atelier Zero landing.\n---\n\nbody\n',
+    path.join(skillsRoot, 'vken-landing', 'SKILL.md'),
+    '---\nname: vken-landing\ndescription: Atelier Zero landing.\n---\n\nbody\n',
     'utf8',
   );
-  await mkdir(path.join(skillsRoot, 'open-design-landing-deck'), {
+  await mkdir(path.join(skillsRoot, 'vken-landing-deck'), {
     recursive: true,
   });
   await writeFile(
-    path.join(skillsRoot, 'open-design-landing-deck', 'SKILL.md'),
-    '---\nname: open-design-landing-deck\ndescription: Atelier Zero deck.\n---\n\nbody\n',
+    path.join(skillsRoot, 'vken-landing-deck', 'SKILL.md'),
+    '---\nname: vken-landing-deck\ndescription: Atelier Zero deck.\n---\n\nbody\n',
     'utf8',
   );
   // An untouched skill so we can prove the helper still resolves
@@ -55,9 +55,13 @@ afterAll(async () => {
 
 describe('SKILL_ID_ALIASES', () => {
   it('maps the editorial-collage rename to its current canonical id', () => {
-    expect(SKILL_ID_ALIASES['editorial-collage']).toBe('open-design-landing');
+    expect(SKILL_ID_ALIASES['open-design-landing']).toBe('vken-landing');
+    expect(SKILL_ID_ALIASES['open-design-landing-deck']).toBe(
+      'vken-landing-deck',
+    );
+    expect(SKILL_ID_ALIASES['editorial-collage']).toBe('vken-landing');
     expect(SKILL_ID_ALIASES['editorial-collage-deck']).toBe(
-      'open-design-landing-deck',
+      'vken-landing-deck',
     );
   });
 
@@ -68,9 +72,13 @@ describe('SKILL_ID_ALIASES', () => {
 
 describe('resolveSkillId', () => {
   it('forwards deprecated ids to their canonical replacement', () => {
-    expect(resolveSkillId('editorial-collage')).toBe('open-design-landing');
+    expect(resolveSkillId('open-design-landing')).toBe('vken-landing');
+    expect(resolveSkillId('open-design-landing-deck')).toBe(
+      'vken-landing-deck',
+    );
+    expect(resolveSkillId('editorial-collage')).toBe('vken-landing');
     expect(resolveSkillId('editorial-collage-deck')).toBe(
-      'open-design-landing-deck',
+      'vken-landing-deck',
     );
   });
 
@@ -91,21 +99,35 @@ describe('findSkillById', () => {
     const skills = await listSkills(skillsRoot);
     const skill = findSkillById(skills, 'editorial-collage');
     expect(skill).toBeDefined();
-    expect(skill.id).toBe('open-design-landing');
+    expect(skill.id).toBe('vken-landing');
     expect(skill.body).toContain('body');
+  });
+
+  it('resolves a project saved with the old VKEN Design Engine landing id', async () => {
+    const skills = await listSkills(skillsRoot);
+    const skill = findSkillById(skills, 'open-design-landing');
+    expect(skill).toBeDefined();
+    expect(skill.id).toBe('vken-landing');
   });
 
   it('resolves a project saved with the old editorial-collage-deck id to the renamed deck skill', async () => {
     const skills = await listSkills(skillsRoot);
     const skill = findSkillById(skills, 'editorial-collage-deck');
     expect(skill).toBeDefined();
-    expect(skill.id).toBe('open-design-landing-deck');
+    expect(skill.id).toBe('vken-landing-deck');
+  });
+
+  it('resolves a project saved with the old VKEN Design Engine deck id', async () => {
+    const skills = await listSkills(skillsRoot);
+    const skill = findSkillById(skills, 'open-design-landing-deck');
+    expect(skill).toBeDefined();
+    expect(skill.id).toBe('vken-landing-deck');
   });
 
   it('still resolves current ids exactly', async () => {
     const skills = await listSkills(skillsRoot);
-    expect(findSkillById(skills, 'open-design-landing')?.id).toBe(
-      'open-design-landing',
+    expect(findSkillById(skills, 'vken-landing')?.id).toBe(
+      'vken-landing',
     );
     expect(findSkillById(skills, 'simple-deck')?.id).toBe('simple-deck');
   });
@@ -114,6 +136,6 @@ describe('findSkillById', () => {
     const skills = await listSkills(skillsRoot);
     expect(findSkillById(skills, 'definitely-not-a-skill')).toBeUndefined();
     expect(findSkillById(skills, '')).toBeUndefined();
-    expect(findSkillById(null, 'open-design-landing')).toBeUndefined();
+    expect(findSkillById(null, 'vken-landing')).toBeUndefined();
   });
 });

@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "sampleId": "landing-generic",
+  "calls": [
+    {
+      "task": "vl",
+      "phase": "critique",
+      "response": {
+        "designQuality": 0.46,
+        "findings": [
+          {
+            "dimension": "hierarchy",
+            "severity": "P1",
+            "description": "Make the hero action hierarchy clearer and reduce secondary competition.",
+            "regionBox": { "x": 24, "y": 96, "w": 960, "h": 360 }
+          },
+          {
+            "dimension": "color",
+            "severity": "P2",
+            "description": "Consolidate hardcoded surface colors into reusable tokens.",
+            "regionBox": { "x": 0, "y": 0, "w": 1440, "h": 900 }
+          },
+          {
+            "dimension": "spacing",
+            "severity": "P2",
+            "description": "Normalize card radius and spacing across repeated feature cards.",
+            "regionBox": { "x": 140, "y": 470, "w": 980, "h": 280 }
+          },
+          {
+            "dimension": "neuroinclusive",
+            "severity": "P2",
+            "description": "Reduce competing actions so the next step is predictable without extra scanning.",
+            "regionBox": { "x": 24, "y": 96, "w": 960, "h": 360 }
+          }
+        ]
+      },
+      "usage": { "inputTokens": 1200, "outputTokens": 260 }
+    },
+    {
+      "task": "coder",
+      "phase": "directions",
+      "response": {
+        "directions": [
+          {
+            "id": "token-consolidation",
+            "name": "Token consolidation",
+            "mood": "Calmer system",
+            "summary": "Replace scattered hardcoded surfaces with a tighter palette and consistent radii.",
+            "changes": ["Introduce reusable color variables", "Normalize repeated card surfaces", "Clarify CTA hierarchy"],
+            "effort": "medium",
+            "risk": "low",
+            "evidenceKbIds": ["seed-token-rhythm"]
+          },
+          {
+            "id": "conversion-focus",
+            "name": "Conversion focus",
+            "mood": "Clearer action",
+            "summary": "Make the primary route through the page more obvious without changing product copy.",
+            "changes": ["Increase primary CTA contrast", "Reduce secondary button weight", "Tighten hero spacing"],
+            "effort": "low",
+            "risk": "low",
+            "evidenceKbIds": ["seed-action-contrast"]
+          }
+        ]
+      },
+      "usage": { "inputTokens": 900, "outputTokens": 240 }
+    },
+    {
+      "task": "coder",
+      "phase": "patches",
+      "response": { "patches": [] },
+      "usage": { "inputTokens": 1600, "outputTokens": 500 }
+    }
+  ]
+}

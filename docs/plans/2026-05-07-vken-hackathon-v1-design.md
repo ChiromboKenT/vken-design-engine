@@ -1,4 +1,4 @@
-# Open Design VKEN — Hackathon V1 Design (Source of Truth)
+# VKEN Design Engine — Hackathon V1 Design (Source of Truth)
 
 | Field             | Value                                                          |
 | ----------------- | -------------------------------------------------------------- |
@@ -85,7 +85,7 @@ add them must be rejected:
 
 - "Implement approved design" mode (aka mode 2 from the original VKEN draft).
 - "Design From Scratch" mode (aka mode 3 from the original VKEN draft).
-- Local install path of VKEN itself. (The Open Design daemon already supports
+- Local install path of VKEN itself. (The VKEN Design Engine daemon already supports
   local; we are not duplicating that surface.) Local is showcased in a screen
   recording only.
 - Browser Use integration. Static analysis + Playwright programmatic capture
@@ -111,7 +111,7 @@ are immutable for V1; changing one requires a new revision of this document.
 
 | ID    | Decision                                                                                  |
 | ----- | ----------------------------------------------------------------------------------------- |
-| D-01  | **Standalone Hugging Face Space** is the V1 surface. Reuses Open Design daemon as a library. |
+| D-01  | **Standalone Hugging Face Space** is the V1 surface. Reuses VKEN Design Engine daemon as a library. |
 | D-02  | **Track 1** is the primary entry. Vision capability is a Track 3 secondary story.          |
 | D-03  | Hook on landing: **live score-climb cockpit** with tagline "VKEN is all the creativity you need." |
 | D-04  | Cockpit visualization: **horizontal timeline scrubber + side-by-side viewport + patch list**. |
@@ -224,7 +224,7 @@ window MUST be reconciled with this section before code is touched.
   `VKEN_GITHUB_BOT_TOKEN`. PAT scopes: `repo` (full control of bot's own
   forks). No OAuth from judge.
 
-### 3.9 Existing Open Design code (audited 2026-05-07)
+### 3.9 Existing VKEN Design Engine code (audited 2026-05-07)
 
 The following modules already exist and are reused **as-is**:
 
@@ -1787,7 +1787,7 @@ internal team use.
 
 ```yaml
 ---
-title: VKEN — Open Design Cockpit
+title: VKEN — VKEN Design Engine Cockpit
 emoji: 🛠
 colorFrom: blue
 colorTo: gray
@@ -2221,7 +2221,7 @@ Deliver:
 
 ## 24. Submission checklist
 
-- [ ] Project Title: **Open Design VKEN — Agentic Design Verification and Auto-Repair for Frontends**
+- [ ] Project Title: **VKEN Design Engine — Agentic Design Verification and Auto-Repair for Frontends**
 - [ ] Short description (≤ 200 chars)
 - [ ] Long description (≤ 1500 chars), repeats the tagline and the 4-stage
       loop

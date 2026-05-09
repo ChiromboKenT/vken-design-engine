@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { EntryView } from './components/EntryView';
+import { VkenApp } from './components/vken/VkenApp';
 import type { CreateInput } from './components/NewProjectPanel';
 import { PetOverlay } from './components/pet/PetOverlay';
 import { migrateCustomPetAtlas } from './components/pet/pets';
@@ -495,7 +496,9 @@ export function App() {
 
   return (
     <>
-      {activeProject ? (
+      {route.kind === 'vken' ? (
+        <VkenApp runId={route.runId} page={route.page} />
+      ) : activeProject ? (
         <ProjectView
           key={activeProject.id}
           project={activeProject}

@@ -37,13 +37,13 @@ export const tr: Dict = {
   'common.daysShort': '{n}g',
   'common.untitled': 'Başlıksız',
 
-  'app.brand': 'Open Design',
+  'app.brand': 'VKEN Design Engine',
   'app.brandPill': 'Önizleme Araştırması',
   'app.brandSubtitle': 'Nexu Labs tarafından',
   'app.welcomeLoading': 'Çalışma alanı yükleniyor…',
 
   'settings.welcomeKicker': 'Hoşgeldiniz',
-  'settings.welcomeTitle': 'Open Design kurulumu',
+  'settings.welcomeTitle': 'VKEN Design Engine kurulumu',
   'settings.welcomeSubtitle':
     "Oluşturmaları nasıl çalıştıracağınızı seçin. Bunu her zaman üst çubuktaki Ayarlar sekmesinden değiştirebilirsiniz.",
   'settings.kicker': 'Ayarlar',
@@ -695,7 +695,7 @@ export const tr: Dict = {
 
   'pet.title': 'Evcil Dostlar',
   'pet.tabBuiltIn': 'Yerleşik',
-  'pet.tabBuiltInHint': 'Open Design ile gelen seçili dostlar — birini seç ve sahiplen.',
+  'pet.tabBuiltInHint': 'VKEN Design Engine ile gelen seçili dostlar — birini seç ve sahiplen.',
   'pet.builtInEmpty': 'Hazır petler şu an kullanılamıyor. Daemon tekrar çevrimiçi olduğunda Topluluk sekmesini yenile.',
   'pet.tabCustom': 'Özel',
   'pet.tabCustomHint': 'Ad, glif, renk veya sprite\'ını kendin belirle.',
@@ -800,7 +800,7 @@ export const tr: Dict = {
   'pet.communitySyncDone': '{wrote} yeni pet eşitlendi (toplam {total}).',
   'pet.communitySyncFailed': 'Eşitleme başarısız: {error}',
   'pet.codexBundled': 'Yerleşik',
-  'pet.codexBundledTitle': 'Open Design ile birlikte gelir — indirme gerekmez.',
+  'pet.codexBundledTitle': 'VKEN Design Engine ile birlikte gelir — indirme gerekmez.',
 
   'settings.notifications': 'Bildirimler',
   'settings.notificationsHint': 'Görev tamamlandığında ses ve masaüstü bildirimi',

@@ -541,7 +541,7 @@ Use OBS or built-in screen recorder. Record three takes, pick the best.
 
 ### 6.4 Block 3 (12:30–14:30): submission texts
 
-- [ ] Project Title (verbatim): **Open Design VKEN — Agentic Design
+- [ ] Project Title (verbatim): **VKEN Design Engine — Agentic Design
       Verification and Auto-Repair for Frontends**
 - [ ] Short description (≤200 chars): "Paste a frontend repo. VKEN scans
       design debt, proposes named directions, ranks fixes, opens a real

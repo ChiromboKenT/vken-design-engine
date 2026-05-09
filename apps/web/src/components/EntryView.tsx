@@ -67,7 +67,8 @@ const SIDEBAR_STORAGE_KEY = 'od-entry-sidebar-width';
 // layout. They re-summon it from the entry-view avatar dropdown — the
 // PetRail's own collapse toggle only narrows the column, so this state
 // is the "the rail isn't there at all" escape hatch.
-const PET_RAIL_HIDDEN_KEY = 'open-design:pet-rail-hidden';
+const PET_RAIL_HIDDEN_KEY = 'vken:pet-rail-hidden';
+const LEGACY_PET_RAIL_HIDDEN_KEY = 'open-design:pet-rail-hidden';
 
 function loadSidebarWidth(): number {
   try {
@@ -84,7 +85,7 @@ function loadSidebarWidth(): number {
 function loadPetRailHidden(): boolean {
   if (typeof window === 'undefined') return false;
   try {
-    return window.localStorage.getItem(PET_RAIL_HIDDEN_KEY) === '1';
+    return (window.localStorage.getItem(PET_RAIL_HIDDEN_KEY) ?? window.localStorage.getItem(LEGACY_PET_RAIL_HIDDEN_KEY)) === '1';
   } catch {
     return false;
   }

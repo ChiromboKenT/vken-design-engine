@@ -49,7 +49,8 @@ const DICTS: Record<Locale, Dict> = {
   'uk': uk,
 };
 
-const LS_KEY = 'open-design:locale';
+const LS_KEY = 'vken:locale';
+const LEGACY_LS_KEY = 'open-design:locale';
 
 // First-run default is English. We honor an explicit user pick saved to
 // localStorage but never auto-detect from `navigator.language`, so the
@@ -57,7 +58,7 @@ const LS_KEY = 'open-design:locale';
 function detectInitialLocale(): Locale {
   if (typeof window === 'undefined') return 'en';
   try {
-    const stored = window.localStorage.getItem(LS_KEY);
+    const stored = window.localStorage.getItem(LS_KEY) ?? window.localStorage.getItem(LEGACY_LS_KEY);
     if (stored && (LOCALES as string[]).includes(stored)) {
       return stored as Locale;
     }

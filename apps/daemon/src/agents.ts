@@ -1043,7 +1043,7 @@ export function checkWindowsDirectExeCommandLineBudget(def, resolvedBin, args) {
   // CreateProcess. On POSIX hosts, `execvp` accepts each argv entry as a
   // separate buffer — there's no command-line concatenation step that
   // could expand past a kernel cap, so we have nothing to guard.
-  if (process.platform !== 'win32' && !looksLikeWindowsPath(resolvedBin)) return null;
+  if (!looksLikeWindowsPath(resolvedBin)) return null;
   const argList = Array.isArray(args) ? args : [];
   // `[command, ...args].map(quote).join(' ')` is the exact shape libuv
   // builds before handing it to CreateProcess.

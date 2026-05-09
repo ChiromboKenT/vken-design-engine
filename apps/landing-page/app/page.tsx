@@ -1,7 +1,7 @@
 /*
- * Open Design — Atelier Zero landing page.
+ * VKEN Design Engine — Atelier Zero landing page.
  *
- * Mirrors `skills/open-design-landing/example.html` 1:1. When the canonical
+ * Mirrors `skills/vken-landing/example.html` 1:1. When the canonical
  * example.html changes, mirror the diff here and into `app/globals.css`.
  *
  * Static React component rendered by Astro. The Header and Wire components
@@ -28,7 +28,7 @@ const arrowPlus = (
 
 const NBSP = '\u00A0';
 
-// Canonical project URLs. Keep in sync with skills/open-design-landing/example.html.
+// Canonical project URLs. Keep in sync with skills/vken-landing/example.html.
 //
 // `data-github-version` invariant: every wrapper must contain ONLY the version
 // string (e.g. `v0.3.0`), never any surrounding label or punctuation. The
@@ -96,7 +96,7 @@ export default function Page() {
       {/* side rails (rotated brand text) */}
       <div className='side-rail right' data-od-id='rail-right'>
         <span className='rail-text'>
-          Open Design — Vol. 01 · Issue Nº 26 · Apache-2.0
+          VKEN Design Engine — Vol. 01 · Issue Nº 26 · Apache-2.0
         </span>
       </div>
       <div className='side-rail left' data-od-id='rail-left'>
@@ -215,7 +215,7 @@ export default function Page() {
               <span className='annot annot-bl coord'>SHA · a1b2c3d</span>
               <span className='annot annot-br'>
                 Composed in{NBSP}
-                <span style={{ color: 'var(--coral)' }}>Open Design</span>
+                <span style={{ color: 'var(--coral)' }}>VKEN Design Engine</span>
               </span>
               <img src={heroImage} alt='' />
               <div className='index'>
@@ -258,7 +258,7 @@ export default function Page() {
               <span className='meta-grp'>
                 <span>About / Manifesto</span>
                 <span className='dot-mark'>•</span>
-                <span>Open Design / Volume 01</span>
+                <span>VKEN Design Engine / Volume 01</span>
               </span>
               <span>002 / 008</span>
             </div>
@@ -308,7 +308,7 @@ export default function Page() {
                 </div>
                 <div className='about-caption'>
                   <b>Studies in form · perception · machine imagination.</b>
-                  (Open Design, MMXXVI)
+                  (VKEN Design Engine, MMXXVI)
                 </div>
               </div>
             </div>
@@ -723,7 +723,7 @@ export default function Page() {
               </div>
               <div className='right'>
                 <a className='method-repo-link' href={REPO} {...ext}>
-                  <b>github.com/nexu-io/open-design</b>
+                  <b>VKEN Design Engine repository</b>
                 </a>
                 {NBSP}·{NBSP}Apache-2.0
               </div>
@@ -739,7 +739,7 @@ export default function Page() {
               <span style={{ display: 'inline-flex', gap: 24 }}>
                 <span>Selected Work · 2026 Catalog</span>
                 <span style={{ color: 'var(--coral)' }}>•</span>
-                <span>Edited by Open Design</span>
+                <span>Edited by VKEN Design Engine</span>
               </span>
               <span>006 / 008</span>
             </div>
@@ -850,7 +850,7 @@ export default function Page() {
                   Collaborators <span className='ix'>· Nº 06</span>
                 </span>
                 <h2 style={{ marginTop: 30 }}>
-                  &ldquo;Open Design helped us turn vague <em>AI ideas</em> into
+                  &ldquo;VKEN Design Engine helped us turn vague <em>AI ideas</em> into
                   a visual system that felt <em>sharp, believable,</em> and
                   genuinely new.&rdquo;
                 </h2>
@@ -1041,7 +1041,7 @@ export default function Page() {
               <div className='foot-brand'>
                 <a href='#top' className='brand'>
                   <span className='brand-mark'>Ø</span>
-                  <span>Open Design</span>
+                  <span>VKEN Design Engine</span>
                 </a>
                 <p style={{ marginTop: 18 }}>
                   The open-source alternative to Claude Design. Built on the
@@ -1082,7 +1082,7 @@ export default function Page() {
                 <a
                   className='foot-cta'
                   href={REPO_RELEASES}
-                  aria-label='Download the Open Design desktop app'
+                  aria-label='Download the VKEN Design Engine desktop app'
                   {...ext}
                 >
                   Download desktop
@@ -1191,7 +1191,7 @@ export default function Page() {
             <div className='foot-bottom'>
               <span>
                 <span className='pulse' />●{' '}
-                <b style={{ color: 'var(--ink)' }}>Open Design</b> · Apache-2.0
+                <b style={{ color: 'var(--ink)' }}>VKEN Design Engine</b> · Apache-2.0
                 · 2026 / Volume 01 / Issue Nº 26
               </span>
               <span className='right'>
