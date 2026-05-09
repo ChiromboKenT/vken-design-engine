@@ -21,6 +21,8 @@ jobs:
           HF_SPACE_REPO: ${{ vars.HF_SPACE_REPO }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
+          # Space README must have HF card front matter; replace repo README
+          cp infra/space/README.md README.md
           pip install -q "huggingface_hub>=0.29.0"
           python - <<'EOF'
           import os

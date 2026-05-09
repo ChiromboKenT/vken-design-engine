@@ -1,3 +1,15 @@
+---
+title: VKEN Engine
+emoji: 🔧
+colorFrom: purple
+colorTo: pink
+sdk: docker
+app_port: 7860
+pinned: false
+license: apache-2.0
+short_description: AI visual repair for Vite + React + Tailwind codebases
+---
+
 # VKEN Hugging Face Space
 
 Use the Docker Space runtime. Required or useful secrets:
