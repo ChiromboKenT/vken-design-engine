@@ -47,3 +47,4 @@ tsconfig.tsbuildinfo
 task.md
 specs/change/active
 .ralph/
+.worktrees/
