@@ -19,7 +19,7 @@ export function buildVkenWorkspaceIndex(intake: VkenIntakeResult): VkenWorkspace
     .join('\n');
   const tokens = extractCssTokens(css);
   return {
-    framework: intake.framework,
+    framework: 'vite-react-tailwind',
     packageManager: intake.packageManager,
     tailwindVersion: intake.tailwindVersion,
     routes: detectRoutes(intake.workspacePath, files),
@@ -30,6 +30,22 @@ export function buildVkenWorkspaceIndex(intake: VkenIntakeResult): VkenWorkspace
     ),
     dependencies,
   };
+}
+
+export function buildVkenWorkspaceIndexFromPath(workspacePath: string): VkenWorkspaceIndex {
+  const packageJsonPath = path.join(workspacePath, 'package.json');
+  const packageJson = fs.existsSync(packageJsonPath)
+    ? (JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as { name?: string })
+    : {};
+  return buildVkenWorkspaceIndex({
+    source: 'url',
+    sourceRef: workspacePath,
+    repoName: packageJson.name ?? path.basename(workspacePath),
+    workspacePath,
+    framework: 'vite-react-tailwind',
+    packageManager: detectPackageManager(workspacePath),
+    tailwindVersion: detectTailwindVersion(workspacePath),
+  });
 }
 
 function detectRoutes(root: string, files: string[]): VkenWorkspaceIndex['routes'] {
@@ -73,4 +89,20 @@ function walk(root: string): string[] {
 
 function relative(root: string, file: string): string {
   return path.relative(root, file).replaceAll(path.sep, '/');
+}
+
+function detectPackageManager(root: string): 'npm' | 'pnpm' | 'yarn' | 'bun' {
+  if (fs.existsSync(path.join(root, 'pnpm-lock.yaml'))) return 'pnpm';
+  if (fs.existsSync(path.join(root, 'yarn.lock'))) return 'yarn';
+  if (fs.existsSync(path.join(root, 'bun.lockb'))) return 'bun';
+  return 'npm';
+}
+
+function detectTailwindVersion(root: string): 3 | 4 {
+  const cssFiles = walk(root).filter((file) => file.endsWith('.css'));
+  for (const file of cssFiles) {
+    const css = fs.readFileSync(file, 'utf8');
+    if (css.includes("@import 'tailwindcss'") || css.includes('@theme')) return 4;
+  }
+  return 3;
 }

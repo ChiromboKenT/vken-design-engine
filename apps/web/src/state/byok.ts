@@ -46,7 +46,9 @@ export function byokHeader(config = loadByokConfig()): Record<string, string> {
 
 export function providerLabel(info: VkenProviderInfoResponse | null): string {
   if (!info) return 'Provider pending';
-  if (info.id === 'cassette') return 'Replaying recorded run';
+  if (info.id === 'amd-vllm') return 'Running on AMD MI300X - Qwen2.5-VL + Qwen3-Coder';
+  if (info.id === 'openrouter') return 'Running on OpenRouter free Qwen';
+  if (info.id === 'cassette') return 'Replaying recorded MI300X run';
   return `Running on ${info.coderModel || info.vlModel} via ${info.id}`;
 }
 

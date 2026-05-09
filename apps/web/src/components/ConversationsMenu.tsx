@@ -3,18 +3,21 @@ import { createPortal } from 'react-dom';
 import { useT } from '../i18n';
 import type { Conversation } from '../types';
 
+export type ConversationMenuKind = 'chat' | 'vken';
+export type ConversationMenuItem = Conversation & { kind?: ConversationMenuKind };
+
 interface Props {
-  conversations: Conversation[];
+  conversations: ConversationMenuItem[];
   activeId: string | null;
   onSelect: (id: string) => void;
   onCreate: () => void;
   onDelete: (id: string) => void;
   onRename: (id: string, title: string) => void;
+  readOnly?: boolean;
+  heading?: string;
+  newLabel?: string;
 }
 
-// Pill + dropdown that lives in the project topbar. Click the pill to
-// reveal the list of conversations for this project, with a "New" action
-// at the top. Recency-ordered (server-side).
 export function ConversationsMenu({
   conversations,
   activeId,
@@ -22,6 +25,9 @@ export function ConversationsMenu({
   onCreate,
   onDelete,
   onRename,
+  readOnly = false,
+  heading,
+  newLabel,
 }: Props) {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -59,10 +65,10 @@ export function ConversationsMenu({
         title={t('conv.switch')}
       >
         <span className="conv-pill-icon" aria-hidden>
-          💬
+          {active?.kind === 'vken' ? 'VK' : 'C'}
         </span>
         <span className="conv-pill-label">
-          {active ? active.title || t('conv.label') : t('conv.heading')}
+          {active ? active.title || t('conv.label') : heading ?? t('conv.heading')}
         </span>
         <span className="conv-pill-count">{conversations.length}</span>
       </button>
@@ -73,6 +79,9 @@ export function ConversationsMenu({
               anchor={pillRef.current}
               conversations={conversations}
               activeId={activeId}
+              readOnly={readOnly}
+              heading={heading}
+              newLabel={newLabel}
               onClose={() => setOpen(false)}
               onSelect={(id) => {
                 setOpen(false);
@@ -97,6 +106,9 @@ function ConversationsDropdown({
   anchor,
   conversations,
   activeId,
+  readOnly,
+  heading,
+  newLabel,
   onClose: _onClose,
   onSelect,
   onCreate,
@@ -105,8 +117,11 @@ function ConversationsDropdown({
 }: {
   menuRef: React.MutableRefObject<HTMLDivElement | null>;
   anchor: HTMLElement | null;
-  conversations: Conversation[];
+  conversations: ConversationMenuItem[];
   activeId: string | null;
+  readOnly: boolean;
+  heading?: string;
+  newLabel?: string;
   onClose: () => void;
   onSelect: (id: string) => void;
   onCreate: () => void;
@@ -137,27 +152,22 @@ function ConversationsDropdown({
   if (!pos) return null;
 
   return (
-    <div
-      ref={menuRef}
-      className="conv-menu"
-      style={{ top: pos.top, left: pos.left }}
-    >
+    <div ref={menuRef} className="conv-menu" style={{ top: pos.top, left: pos.left }}>
       <div className="conv-menu-header">
-        <span>{t('conv.heading')}</span>
-        <button className="ghost conv-add-btn" onClick={onCreate}>
-          {t('conv.new')}
-        </button>
+        <span>{heading ?? t('conv.heading')}</span>
+        {!readOnly ? (
+          <button className="ghost conv-add-btn" onClick={onCreate}>
+            {newLabel ?? t('conv.new')}
+          </button>
+        ) : null}
       </div>
       {conversations.length === 0 ? (
         <div className="conv-menu-empty">{t('conv.empty')}</div>
       ) : (
         <ul className="conv-list">
           {conversations.map((c) => (
-            <li
-              key={c.id}
-              className={`conv-item ${c.id === activeId ? 'active' : ''}`}
-            >
-              {editing === c.id ? (
+            <li key={c.id} className={`conv-item ${c.id === activeId ? 'active' : ''}`}>
+              {editing === c.id && !readOnly ? (
                 <input
                   autoFocus
                   className="conv-rename-input"
@@ -181,35 +191,36 @@ function ConversationsDropdown({
                   className="conv-item-button"
                   onClick={() => onSelect(c.id)}
                   onDoubleClick={() => {
+                    if (readOnly) return;
                     setEditing(c.id);
                     setDraft(c.title ?? '');
                   }}
-                  title={t('conv.renameTooltip')}
+                  title={readOnly ? c.title ?? undefined : t('conv.renameTooltip')}
                 >
-                  <span className="conv-item-name">
-                    {c.title || t('conv.untitled')}
-                  </span>
+                  <span className="conv-item-name">{c.title || t('conv.untitled')}</span>
                   <span className="conv-item-meta">{relTime(c.updatedAt, t)}</span>
                 </button>
               )}
-              <button
-                className="conv-item-del"
-                title={t('conv.delete')}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (
-                    confirm(
-                      t('conv.deleteConfirm', {
-                        title: c.title || t('conv.untitled'),
-                      }),
-                    )
-                  ) {
-                    onDelete(c.id);
-                  }
-                }}
-              >
-                ×
-              </button>
+              {!readOnly ? (
+                <button
+                  className="conv-item-del"
+                  title={t('conv.delete')}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (
+                      confirm(
+                        t('conv.deleteConfirm', {
+                          title: c.title || t('conv.untitled'),
+                        }),
+                      )
+                    ) {
+                      onDelete(c.id);
+                    }
+                  }}
+                >
+                  x
+                </button>
+              ) : null}
             </li>
           ))}
         </ul>

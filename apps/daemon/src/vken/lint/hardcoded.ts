@@ -10,6 +10,7 @@ export function findHardcodedValues(file: string, content: string): HardcodedVal
   const lines = content.split(/\r?\n/);
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i] ?? '';
+    if (/^\s*--[a-zA-Z0-9-_]+\s*:/.test(line)) continue;
     collectMatches(COLOR_RE, line, (value) => {
       findings.push({ file, line: i + 1, kind: 'color', value });
     });

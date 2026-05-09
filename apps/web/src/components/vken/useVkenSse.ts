@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import type {
   VkenDirection,
+  VkenApplyPayload,
   VkenLearnPayload,
   VkenPatch,
+  VkenProblemCategoryBreakdown,
   VkenSseEvent,
+  VkenSteerPayload,
   VkenValidatePayload,
 } from '@open-design/contracts';
 import { parseSseFrame } from '../../providers/sse';
@@ -17,8 +20,11 @@ export interface VkenRunState {
   directions: VkenDirection[];
   directionPicked: string | null;
   patches: VkenPatch[];
+  categories: VkenProblemCategoryBreakdown[];
   validations: VkenValidatePayload[];
   learns: VkenLearnPayload[];
+  steers: VkenSteerPayload[];
+  applies: VkenApplyPayload[];
   previewUrl: string | null;
   activeCheckpoint: string;
   prUrl: string | null;
@@ -34,6 +40,7 @@ export interface VkenRunState {
 }
 
 export interface VkenCaptureSummary {
+  checkpoint: string;
   routePath: string;
   viewport: string;
   screenshotUrl: string;
@@ -95,8 +102,11 @@ function initialState(runId: string | null): VkenRunState {
     directions: [],
     directionPicked: null,
     patches: [],
+    categories: [],
     validations: [],
     learns: [],
+    steers: [],
+    applies: [],
     previewUrl: null,
     activeCheckpoint: 'initial',
     prUrl: null,
@@ -125,18 +135,31 @@ function reduceEvent(curr: VkenRunState, event: VkenSseEvent): VkenRunState {
       hardcodedValues: event.data.hardcodedValues,
       tokenCoverage: event.data.tokenCoverage,
     };
+    if (event.data.categories) next.categories = event.data.categories;
   }
   if (event.event === 'vken:capture' && event.data.routePath && event.data.viewport && event.data.screenshotUrl) {
+    const checkpoint = event.data.checkpoint ?? 'initial';
+    const capture = {
+      checkpoint,
+      routePath: event.data.routePath,
+      viewport: event.data.viewport,
+      screenshotUrl: event.data.screenshotUrl,
+    };
     next.captures = [
-      ...next.captures,
-      {
-        routePath: event.data.routePath,
-        viewport: event.data.viewport,
-        screenshotUrl: event.data.screenshotUrl,
-      },
+      ...next.captures.filter(
+        (item) =>
+          item.checkpoint !== capture.checkpoint ||
+          item.routePath !== capture.routePath ||
+          item.viewport !== capture.viewport,
+      ),
+      capture,
     ];
+    if (checkpoint !== 'initial') next.activeCheckpoint = checkpoint;
   }
-  if (event.event === 'vken:score') next.score = event.data.value;
+  if (event.event === 'vken:score') {
+    next.score = event.data.value;
+    if (event.data.categories) next.categories = event.data.categories;
+  }
   if (event.event === 'vken:direction') {
     if (event.data.picked && event.data.id) next.directionPicked = event.data.id;
     if (!event.data.done && event.data.id && event.data.name) {
@@ -153,6 +176,8 @@ function reduceEvent(curr: VkenRunState, event: VkenSseEvent): VkenRunState {
     ];
   }
   if (event.event === 'vken:apply') {
+    next.applies = [...next.applies.filter((item) => item.patchId !== event.data.patchId), event.data];
+    if (event.data.categories) next.categories = event.data.categories;
     if (event.data.directionPicked) next.directionPicked = event.data.directionPicked;
     if (event.data.previewUrl) {
       next.previewUrl = event.data.previewUrl;
@@ -164,6 +189,7 @@ function reduceEvent(curr: VkenRunState, event: VkenSseEvent): VkenRunState {
   }
   if (event.event === 'vken:validate') next.validations = [...next.validations, event.data];
   if (event.event === 'vken:learn') next.learns = [...next.learns, event.data];
+  if (event.event === 'vken:steer') next.steers = [...next.steers, event.data];
   if (event.event === 'vken:finalize') {
     next.prUrl = event.data.prUrl;
   }

@@ -2,13 +2,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { VkenCreateRunRequest } from './types.js';
-import { captureVkenWorkspace } from './capture.js';
-import { buildVkenWorkspaceIndex } from './index-build.js';
+import { captureVkenWebsite, captureVkenWorkspace } from './capture.js';
+import { buildVkenWorkspaceIndex, buildVkenWorkspaceIndexFromPath } from './index-build.js';
 import { resolveVkenIntake, VkenIntakeError } from './intake.js';
 import { startViteDevServer } from './runner.js';
 import { scoreVkenIndex } from './score.js';
 import { critiqueCapture } from './critique.js';
 import { proposeDirections } from './directions.js';
+import type { VkenScorePayload } from './types.js';
+import { repoHash } from './memory.js';
+import { buildVkenProblemCategories, categoryTotals } from './categories.js';
 
 export async function executeDeterministicVkenRun({
   db,
@@ -38,7 +41,7 @@ export async function executeDeterministicVkenRun({
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       targetId,
-      intake.source,
+      intake.source === 'website' ? 'url' : intake.source,
       intake.sourceRef,
       intake.framework,
       intake.packageManager,
@@ -47,9 +50,9 @@ export async function executeDeterministicVkenRun({
       now,
     );
     db.prepare(
-      `INSERT INTO vken_runs (id, target_id, status, started_at, created_at)
-       VALUES (?, ?, 'running', ?, ?)`,
-    ).run(run.id, targetId, now, now);
+      `INSERT INTO vken_runs (id, target_id, status, started_at, repo_hash, created_at)
+       VALUES (?, ?, 'running', ?, ?, ?)`,
+    ).run(run.id, targetId, now, repoHash(intake.sourceRef), now);
 
     service.emit(run, 'vken:intake', {
       repo: {
@@ -60,8 +63,112 @@ export async function executeDeterministicVkenRun({
       framework: intake.framework,
     });
 
+    if (intake.source === 'website') {
+      const index = {
+        framework: 'vite-react-tailwind' as const,
+        packageManager: 'npm' as const,
+        tailwindVersion: 4 as const,
+        routes: [{ path: '/', componentFile: 'remote-url', auth: false as const }],
+        components: [],
+        tokens: { colors: {}, spacings: {}, radii: {}, coverageRatio: 0 },
+        hardcodedValues: [],
+        dependencies: {},
+      };
+      const scanCategories = buildVkenProblemCategories(index);
+      run.categoryTotals = categoryTotals(scanCategories);
+      run.workspacePath = intake.workspacePath;
+      run.index = index;
+      run.dataDir = dataDir;
+      service.emit(run, 'vken:scan', {
+        durationMs: 0,
+        components: 0,
+        routes: 1,
+        hardcodedValues: 0,
+        tokenCoverage: 0,
+        categories: scanCategories,
+        done: true,
+      });
+
+      const runDir = path.join(dataDir, 'vken', 'runs', run.id);
+      run.runDir = runDir;
+      fs.mkdirSync(runDir, { recursive: true });
+      fs.writeFileSync(path.join(runDir, 'workspace-index.json'), JSON.stringify(index, null, 2));
+      const captures = await captureVkenWebsite({
+        runId: run.id,
+        runDir,
+        targetUrl: intake.sourceRef,
+        checkpoint: 'initial',
+      });
+      for (const capture of captures) {
+        db.prepare(
+          `INSERT INTO vken_captures
+            (id, run_id, checkpoint, route_path, viewport, screenshot_path, aria_yaml,
+             css_vars_json, box_models_json, console_json, captured_at)
+           VALUES (?, ?, 'initial', ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).run(
+          capture.id,
+          run.id,
+          capture.routePath,
+          capture.viewport,
+          capture.screenshotPath,
+          capture.ariaYaml,
+          capture.cssVarsJson,
+          capture.boxModelsJson,
+          capture.consoleJson,
+          capture.capturedAt,
+        );
+        service.emit(run, 'vken:capture', {
+          checkpoint: 'initial',
+          routePath: capture.routePath,
+          viewport: capture.viewport,
+          screenshotUrl: `/api/vken/captures/${capture.id}/screenshot.png`,
+        });
+      }
+      service.emit(run, 'vken:capture', { checkpoint: 'initial', done: true, count: captures.length });
+
+      const critiqueResults = [];
+      if (noLlm) {
+        service.emit(run, 'vken:patch', { done: true });
+      } else {
+        for (const capture of captures.filter((capture) => capture.viewport === 'desktop')) {
+          critiqueResults.push(
+            await critiqueCapture({
+              captureId: capture.id,
+              runId: run.id,
+              db,
+              opts: { byok: run.byok },
+            }),
+          );
+        }
+      }
+      const designQuality =
+        critiqueResults.length > 0
+          ? critiqueResults.reduce((sum, item) => sum + item.designQuality, 0) / critiqueResults.length
+          : undefined;
+      const findings = critiqueResults.flatMap((item) => item.findings);
+      const scoreCategories = buildVkenProblemCategories(index, {
+        totals: run.categoryTotals,
+        findings,
+      });
+      run.categoryTotals = categoryTotals(scoreCategories);
+      const score = scoreVkenIndex(index, { designQuality, categories: scoreCategories });
+      run.scoreInitial = score.value;
+      service.emit(run, 'vken:score', score);
+      const endedAt = Date.now();
+      run.endedAt = endedAt;
+      db.prepare(`UPDATE vken_runs SET status = 'succeeded', ended_at = ?, score_initial = ? WHERE id = ?`).run(
+        endedAt,
+        score.value,
+        run.id,
+      );
+      service.finish(run, 'succeeded');
+      return;
+    }
+
     const scanStart = Date.now();
     const index = buildVkenWorkspaceIndex(intake);
+    const scanCategories = buildVkenProblemCategories(index);
+    run.categoryTotals = categoryTotals(scanCategories);
     run.workspacePath = intake.workspacePath;
     run.sampleId = intake.source === 'sample' ? intake.sourceRef : undefined;
     run.index = index;
@@ -72,6 +179,7 @@ export async function executeDeterministicVkenRun({
       routes: index.routes.length,
       hardcodedValues: index.hardcodedValues.length,
       tokenCoverage: index.tokens.coverageRatio,
+      categories: scanCategories,
       done: true,
     });
 
@@ -110,12 +218,13 @@ export async function executeDeterministicVkenRun({
         capture.capturedAt,
       );
       service.emit(run, 'vken:capture', {
+        checkpoint: 'initial',
         routePath: capture.routePath,
         viewport: capture.viewport,
         screenshotUrl: `/api/vken/captures/${capture.id}/screenshot.png`,
       });
     }
-    service.emit(run, 'vken:capture', { done: true, count: captures.length });
+    service.emit(run, 'vken:capture', { checkpoint: 'initial', done: true, count: captures.length });
 
     const desktopCaptures = captures.filter((capture) => capture.viewport === 'desktop');
     const critiqueResults = [];
@@ -139,7 +248,13 @@ export async function executeDeterministicVkenRun({
       critiqueResults.length > 0
         ? critiqueResults.reduce((sum, item) => sum + item.designQuality, 0) / critiqueResults.length
         : undefined;
-    const score = scoreVkenIndex(index, { designQuality });
+    const findings = critiqueResults.flatMap((item) => item.findings);
+    const scoreCategories = buildVkenProblemCategories(index, {
+      totals: run.categoryTotals,
+      findings,
+    });
+    run.categoryTotals = categoryTotals(scoreCategories);
+    const score = scoreVkenIndex(index, { designQuality, categories: scoreCategories });
     run.scoreInitial = score.value;
     service.emit(run, 'vken:score', score);
     db.prepare(`UPDATE vken_runs SET score_initial = ? WHERE id = ?`).run(score.value, run.id);
@@ -177,4 +292,20 @@ export async function executeDeterministicVkenRun({
     db.prepare(`UPDATE vken_runs SET status = 'failed', ended_at = ? WHERE id = ?`).run(endedAt, run.id);
     service.fail(run, code, message);
   }
+}
+
+export async function recomputeScoreFromMaterialized(input: {
+  runId: string;
+  db: any;
+  workspaceDir: string;
+  designQualityOverride?: number;
+  when?: VkenScorePayload['when'];
+  categories?: VkenScorePayload['categories'];
+}): Promise<VkenScorePayload> {
+  const index = buildVkenWorkspaceIndexFromPath(input.workspaceDir);
+  return scoreVkenIndex(index, {
+    designQuality: input.designQualityOverride,
+    when: input.when ?? 'final',
+    categories: input.categories,
+  });
 }

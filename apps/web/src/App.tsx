@@ -497,7 +497,22 @@ export function App() {
   return (
     <>
       {route.kind === 'vken' ? (
-        <VkenApp runId={route.runId} page={route.page} />
+        <VkenApp
+          runId={route.runId}
+          page={route.page}
+          config={config}
+          agents={agents}
+          daemonLive={daemonLive}
+          onModeChange={handleModeChange}
+          onAgentChange={handleAgentChange}
+          onAgentModelChange={handleAgentModelChange}
+          onOpenSettings={openSettings}
+          onRefreshAgents={refreshAgents}
+          onAdoptPetInline={handleAdoptPet}
+          onTogglePet={handleTogglePet}
+          onOpenPetSettings={openPetSettings}
+          onBack={handleBack}
+        />
       ) : activeProject ? (
         <ProjectView
           key={activeProject.id}

@@ -1,10 +1,20 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import type { VkenProviderInfoResponse } from '@open-design/contracts';
 import { vkenFetch } from '../../providers/registry';
 import { emptyByokConfig, loadByokConfig, saveByokConfig, type VkenByokConfig } from '../../state/byok';
 
 export function ByokPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [config, setConfig] = useState<VkenByokConfig>(() => loadByokConfig());
   const [status, setStatus] = useState<string>('');
+  const [providerInfo, setProviderInfo] = useState<VkenProviderInfoResponse | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    void (async () => {
+      const resp = await vkenFetch('/api/vken/provider/info');
+      if (resp.ok) setProviderInfo((await resp.json()) as VkenProviderInfoResponse);
+    })();
+  }, [open]);
 
   if (!open) return null;
 
@@ -40,6 +50,23 @@ export function ByokPanel({ open, onClose }: { open: boolean; onClose: () => voi
             ))}
           </select>
         </label>
+        {providerInfo?.amdPreset ? (
+          <button
+            type="button"
+            onClick={() =>
+              update({
+                provider: 'amd-vllm',
+                apiKey: providerInfo.amdPreset?.token ?? '',
+                vlModel: providerInfo.amdPreset?.vlModel ?? '',
+                coderModel: providerInfo.amdPreset?.coderModel ?? '',
+                baseUrl: providerInfo.amdPreset?.baseUrl ?? '',
+              })
+            }
+            style={presetButtonStyle}
+          >
+            MI300X preset
+          </button>
+        ) : null}
         <label style={labelStyle}>
           API key
           <input value={config.apiKey} onChange={(event) => update({ apiKey: event.target.value })} type="password" />
@@ -108,4 +135,14 @@ const buttonStyle = {
   background: '#111827',
   color: 'white',
   padding: '0 12px',
+};
+
+const presetButtonStyle = {
+  minHeight: 36,
+  borderRadius: 8,
+  border: '1px solid #7c3aed',
+  background: '#f5f3ff',
+  color: '#5b21b6',
+  padding: '0 12px',
+  marginBottom: 12,
 };

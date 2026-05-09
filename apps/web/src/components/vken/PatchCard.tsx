@@ -2,7 +2,17 @@ import type { VkenPatch } from '@open-design/contracts';
 import { vkenFetch } from '../../providers/registry';
 import { EvidenceChip } from './EvidenceChip';
 
-export function PatchCard({ runId, patch }: { runId: string | null; patch: VkenPatch }) {
+export function PatchCard({
+  runId,
+  patch,
+  focused,
+  onFocus,
+}: {
+  runId: string | null;
+  patch: VkenPatch;
+  focused?: boolean;
+  onFocus?: () => void;
+}) {
   async function approve() {
     if (!runId) return;
     await vkenFetch(`/api/vken/runs/${encodeURIComponent(runId)}/approve`, {
@@ -23,7 +33,17 @@ export function PatchCard({ runId, patch }: { runId: string | null; patch: VkenP
 
   const first = patch.hunks[0];
   return (
-    <article style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 12, marginBottom: 10 }}>
+    <article
+      tabIndex={0}
+      onFocus={onFocus}
+      style={{
+        border: focused ? '2px solid #4f46e5' : '1px solid #e5e7eb',
+        borderRadius: 8,
+        padding: 12,
+        marginBottom: 10,
+        outlineOffset: 2,
+      }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
         <strong>{patch.severity}</strong>
         <EvidenceChip ids={patch.evidenceKbIds} />

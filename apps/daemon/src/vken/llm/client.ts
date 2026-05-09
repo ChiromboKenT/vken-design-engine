@@ -75,6 +75,24 @@ export interface VkenProviderRawResult {
 
 type ProviderFn = (input: VkenProviderRequest) => Promise<VkenProviderRawResult>;
 
+export interface VkenTranscriptRecorder {
+  record(call: {
+    task: 'vl' | 'coder';
+    phase: string;
+    messages: VkenChatMessage[];
+    response: unknown;
+    usage: VkenChatUsage;
+    providerId: VkenProviderId;
+    modelId: string;
+  }): void;
+}
+
+let activeRecorder: VkenTranscriptRecorder | null = null;
+
+export function setTranscriptRecorder(recorder: VkenTranscriptRecorder | null): void {
+  activeRecorder = recorder;
+}
+
 const PROVIDERS: Record<VkenProviderId, ProviderFn> = {
   openrouter: chatOpenRouter,
   gemini: chatGemini,
@@ -175,17 +193,37 @@ async function callProviderWithSchemaRetry(
     });
     const parsed = parseJsonObject(raw.raw);
     if (!schema) {
-      return { parsed, raw: raw.raw, usage: raw.usage, providerId: selection.id, modelId: raw.modelId };
+      const result = { parsed, raw: raw.raw, usage: raw.usage, providerId: selection.id, modelId: raw.modelId };
+      activeRecorder?.record({
+        task,
+        phase: options.phase ?? 'unknown',
+        messages,
+        response: result.parsed,
+        usage: result.usage,
+        providerId: result.providerId,
+        modelId: result.modelId,
+      });
+      return result;
     }
     const checked = schema.safeParse(parsed);
     if (checked.success) {
-      return {
+      const result = {
         parsed: checked.data,
         raw: raw.raw,
         usage: raw.usage,
         providerId: selection.id,
         modelId: raw.modelId,
       };
+      activeRecorder?.record({
+        task,
+        phase: options.phase ?? 'unknown',
+        messages,
+        response: result.parsed,
+        usage: result.usage,
+        providerId: result.providerId,
+        modelId: result.modelId,
+      });
+      return result;
     }
     schemaError = checked.error;
   }

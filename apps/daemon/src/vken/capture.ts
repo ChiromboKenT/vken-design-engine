@@ -52,9 +52,40 @@ export async function captureVkenWorkspace(input: {
   return captures;
 }
 
+export async function captureVkenWebsite(input: {
+  runId: string;
+  runDir: string;
+  targetUrl: string;
+  checkpoint?: string;
+}): Promise<VkenCaptureRecord[]> {
+  const captures: VkenCaptureRecord[] = [];
+  const browser = await chromium.launch({ headless: true });
+  const parsed = new URL(input.targetUrl);
+  const routePath = parsed.pathname === '/' && !parsed.search ? '/' : `${parsed.pathname}${parsed.search}`;
+  try {
+    for (const viewport of ['desktop', 'tablet', 'mobile'] as const) {
+      captures.push(
+        await captureRoute({
+          browser,
+          baseUrl: parsed.origin,
+          targetUrl: input.targetUrl,
+          runDir: input.runDir,
+          checkpoint: input.checkpoint ?? 'initial',
+          routePath,
+          viewport,
+        }),
+      );
+    }
+  } finally {
+    await browser.close();
+  }
+  return captures;
+}
+
 async function captureRoute(input: {
   browser: Browser;
   baseUrl: string;
+  targetUrl?: string;
   runDir: string;
   checkpoint: string;
   routePath: string;
@@ -69,7 +100,7 @@ async function captureRoute(input: {
     consoleErrors.push(error.message);
   });
 
-  const url = new URL(input.routePath, input.baseUrl).toString();
+  const url = input.targetUrl ?? new URL(input.routePath, input.baseUrl).toString();
   await page.goto(url, { waitUntil: 'networkidle', timeout: 20_000 });
 
   const dir = path.join(

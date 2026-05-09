@@ -278,6 +278,25 @@ code {
   gap: 12px;
   flex-shrink: 0;
 }
+.app-chrome-header-with-subheader {
+  display: grid;
+  grid-template-rows: auto auto;
+  align-items: stretch;
+  gap: 0;
+  min-height: 0;
+  padding: 0;
+}
+.app-chrome-main-row {
+  min-height: 40px;
+  padding: 4px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.app-chrome-subheader {
+  min-width: 0;
+  border-top: 1px solid var(--border-soft);
+}
 .app-chrome-traffic-space {
   width: var(--app-chrome-traffic-space);
   flex: 0 0 var(--app-chrome-traffic-space);

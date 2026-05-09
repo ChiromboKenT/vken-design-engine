@@ -1,27 +1,39 @@
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { runKbBench, type VkenKbBenchVariant } from '../apps/daemon/dist/vken/kb-bench-core.js';
+import type { VkenSampleId } from '../apps/daemon/dist/vken/types.js';
 
-const mode = process.argv[2] || 'seed-only';
+const args = process.argv.slice(2);
+const variant = readArg('--variant') ?? args.find((arg) => arg === 'seed-only' || arg === 'seed+learned') ?? 'seed+learned';
+const samplesArg = readArg('--samples');
+const json = args.includes('--json');
 const repoRoot = path.resolve(import.meta.dirname, '..');
-const seedPath = path.join(repoRoot, 'kb', 'seed.jsonl');
-const learnedPath = path.join(repoRoot, 'kb', 'learned.jsonl');
+const samples = samplesArg ? normalizeSamples(samplesArg) : undefined;
 
-function countLines(file: string): number {
-  try {
-    return readFileSync(file, 'utf8').split(/\r?\n/).filter(Boolean).length;
-  } catch {
-    return 0;
-  }
+const result = await runKbBench({
+  projectRoot: repoRoot,
+  variant: normalizeVariant(variant),
+  ...(samples === undefined ? {} : { samples }),
+});
+
+console.log(JSON.stringify(result, null, 2));
+if (!json) console.log('VKEN_KB_BENCH_OK');
+
+function readArg(name: string): string | undefined {
+  const index = args.indexOf(name);
+  if (index === -1) return undefined;
+  return args[index + 1];
 }
 
-const seed = countLines(seedPath);
-const learned = mode === 'seed+learned' ? countLines(learnedPath) : 0;
-const samples = ['landing-generic', 'dashboard-cluttered', 'ecommerce-basic'];
-const deltas = samples.map((sample, index) => ({
-  sample,
-  delta: Number(((seed * 0.03 + learned * 0.05) / (index + 1)).toFixed(2)),
-}));
-const aggregate = Number(deltas.reduce((sum, row) => sum + row.delta, 0).toFixed(2));
+function normalizeVariant(value: string): VkenKbBenchVariant {
+  return value === 'seed-only' ? 'seed-only' : 'seed+learned';
+}
 
-console.log(JSON.stringify({ mode, seed, learned, deltas, aggregate }, null, 2));
-console.log('VKEN_KB_BENCH_OK');
+function normalizeSamples(value: string): VkenSampleId[] {
+  const allowed = new Set<VkenSampleId>(['landing-generic', 'dashboard-cluttered', 'ecommerce-basic']);
+  const samples = value
+    .split(',')
+    .map((sample) => sample.trim())
+    .filter((sample): sample is VkenSampleId => allowed.has(sample as VkenSampleId));
+  if (samples.length === 0) throw new Error(`--samples must include at least one known sample: ${[...allowed].join(', ')}`);
+  return samples;
+}

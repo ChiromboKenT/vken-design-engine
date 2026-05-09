@@ -6,6 +6,7 @@ import { chatCoder } from './llm/client.js';
 import { ProposeSchema, type ProposeResult } from './llm/schema.js';
 import { recordUsage } from './llm/token-account.js';
 import { initVirtualFs, norm, patchSearchMatches, type VkenVirtualFsSession } from './apply.js';
+import { categorizeVkenPatch } from './categories.js';
 
 export async function proposePatches(input: {
   runId: string;
@@ -19,6 +20,7 @@ export async function proposePatches(input: {
     byok?: any;
     noLlm?: boolean | undefined;
     kbRules?: Array<{ id: string; ruleText: string }> | undefined;
+    steers?: Array<{ text: string }> | undefined;
   };
 }): Promise<{ patches: VkenPatch[]; session: VkenVirtualFsSession }> {
   const session = input.session ?? initVirtualFs(input.workspacePath);
@@ -57,7 +59,10 @@ File excerpts:
 ${fileExcerpts(session).slice(0, 9000)}
 
 KB:
-${JSON.stringify(input.opts?.kbRules ?? []).slice(0, 2000)}`,
+${JSON.stringify(input.opts?.kbRules ?? []).slice(0, 2000)}
+
+Reviewer steering:
+${JSON.stringify(input.opts?.steers ?? []).slice(0, 2000)}`,
         },
       ],
       ProposeSchema,
@@ -91,7 +96,11 @@ ${JSON.stringify(input.opts?.kbRules ?? []).slice(0, 2000)}`,
       }
       return true;
     })
-    .slice(0, 8);
+    .slice(0, 8)
+    .map((patch) => ({
+      ...patch,
+      categories: patch.categories && patch.categories.length > 0 ? patch.categories : categorizeVkenPatch(patch),
+    }));
 
   const now = Date.now();
   for (const patch of patches) {
@@ -140,11 +149,20 @@ function deterministicPatches(
   for (const filePath of cssFiles) {
     const content = session.files.get(filePath);
     if (!content) continue;
+    if (content.includes(':root {') && !content.includes('--vken-text-secondary')) {
+      patches.push(makePatch(filePath, ':root {', ':root {\n  --vken-text-secondary: #344054;\n  --vken-surface-muted: #f8fafc;\n  --vken-radius-card: 12px;', {
+        direction,
+        findingIds,
+        severity: 'P2',
+        rationale: 'Introduce shared VKEN tokens before replacing repeated literal design values.',
+        evidenceKbIds: ['seed-token-rhythm'],
+      }));
+    }
     const lines = norm(content).split('\n');
     for (const line of lines) {
       const trimmed = line.trim();
       if (/border-radius:\s*(?:[2-9]\d|1[6-9])px;/.test(trimmed)) {
-        patches.push(makePatch(filePath, line, line.replace(/border-radius:\s*\d+px;/, 'border-radius: 12px;'), {
+        patches.push(makePatch(filePath, line, line.replace(/border-radius:\s*\d+px;/, 'border-radius: var(--vken-radius-card);'), {
           direction,
           findingIds,
           severity,
@@ -153,7 +171,7 @@ function deterministicPatches(
         }));
       }
       if (/color:\s*#(?:98a2b3|9a8170|667085|8a6f58|6b7280);/i.test(trimmed)) {
-        patches.push(makePatch(filePath, line, line.replace(/color:\s*#[0-9a-f]{6};/i, 'color: #344054;'), {
+        patches.push(makePatch(filePath, line, line.replace(/color:\s*#[0-9a-f]{6};/i, 'color: var(--vken-text-secondary);'), {
           direction,
           findingIds,
           severity,
@@ -162,7 +180,7 @@ function deterministicPatches(
         }));
       }
       if (/background:\s*#(?:f4f1ff|fdf2fa|eef4ff|fffaf5|fffaeb|efe1d1);/i.test(trimmed)) {
-        patches.push(makePatch(filePath, line, line.replace(/background:\s*#[0-9a-f]{6};/i, 'background: #f8fafc;'), {
+        patches.push(makePatch(filePath, line, line.replace(/background:\s*#[0-9a-f]{6};/i, 'background: var(--vken-surface-muted);'), {
           direction,
           findingIds,
           severity: 'P2',

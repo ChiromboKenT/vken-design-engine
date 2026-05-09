@@ -1,0 +1,25 @@
+.vken-app,
+.vken-workshop {
+  --vken-surface: #fafaf5;
+  --vken-surface-alt: #f0ebe1;
+  --vken-input: #f5f0e8;
+  --vken-rule: #e8dfd0;
+  --vken-heading: #2d3b2d;
+  --vken-body: #1a1a1a;
+  --vken-muted: #6e6e6e;
+  --vken-muted-2: #8a8175;
+  --vken-active: #c9a96e;
+  --vken-active-ink: #8f6f2c;
+  --vken-success: #2e7d4f;
+  --vken-warning: #b8860b;
+  --vken-error: #c0392b;
+  --vken-info: #2e6b8a;
+  --vken-stage-done: #3d5a3d;
+  --vken-stage-progress: #4a7a4a;
+  --vken-shadow: 0 18px 60px rgba(45, 59, 45, 0.12);
+  --vken-chart-1: oklch(0.58 0.14 147);
+  --vken-chart-2: oklch(0.66 0.13 73);
+  --vken-chart-3: oklch(0.57 0.12 226);
+  --vken-chart-4: oklch(0.61 0.13 31);
+  --vken-chart-5: oklch(0.56 0.12 305);
+}

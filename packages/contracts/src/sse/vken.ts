@@ -1,10 +1,15 @@
 import type { SseErrorPayload } from '../errors';
-import type { VkenDirection, VkenPatch, VkenViewport } from '../api/vken';
+import type {
+  VkenDirection,
+  VkenPatch,
+  VkenProblemCategoryBreakdown,
+  VkenViewport,
+} from '../api/vken';
 import type { SseTransportEvent } from './common';
 
 export interface VkenIntakePayload {
   repo: { name: string; sourceRef: string; sample?: string };
-  framework: 'vite-react-tailwind';
+  framework: 'vite-react-tailwind' | 'website-capture';
 }
 
 export interface VkenScanPayload {
@@ -13,10 +18,12 @@ export interface VkenScanPayload {
   routes: number;
   hardcodedValues: number;
   tokenCoverage: number;
+  categories?: VkenProblemCategoryBreakdown[];
   done?: boolean;
 }
 
 export interface VkenCapturePayload {
+  checkpoint?: string;
   routePath?: string;
   viewport?: VkenViewport;
   screenshotUrl?: string;
@@ -27,6 +34,7 @@ export interface VkenCapturePayload {
 export interface VkenScorePayload {
   when: 'initial' | 'final' | 'scrub';
   value: number;
+  categories?: VkenProblemCategoryBreakdown[];
   dimensions: {
     designQuality: number;
     tokenCoverage: number;
@@ -54,6 +62,7 @@ export interface VkenApplyPayload {
   pixelDeltaToInitial?: number;
   previewUrl?: string;
   directionPicked?: string;
+  categories?: VkenProblemCategoryBreakdown[];
 }
 
 export interface VkenValidatePayload {
@@ -73,7 +82,15 @@ export interface VkenLearnPayload {
   ruleText?: string;
   evidenceRunIds?: string[];
   status?: 'proposed' | 'accepted' | 'rejected';
+  reason?: string;
   done?: boolean;
+}
+
+export interface VkenSteerPayload {
+  kind: 'steer' | 'discuss';
+  patchId?: string;
+  text: string;
+  answers: Record<string, string | string[]>;
 }
 
 export type VkenSseEvent =
@@ -87,6 +104,7 @@ export type VkenSseEvent =
   | SseTransportEvent<'vken:validate', VkenValidatePayload>
   | SseTransportEvent<'vken:finalize', VkenFinalizePayload>
   | SseTransportEvent<'vken:learn', VkenLearnPayload>
+  | SseTransportEvent<'vken:steer', VkenSteerPayload>
   | SseTransportEvent<'error', SseErrorPayload>
   | SseTransportEvent<'end', { status: 'succeeded' | 'failed' | 'canceled' }>;
 

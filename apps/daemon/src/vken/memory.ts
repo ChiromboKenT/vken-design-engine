@@ -23,7 +23,7 @@ export function saveRunMemory(db: any, runId: string, memory: VkenMemory): void 
 }
 
 export function repoHash(repoUrl: string): string {
-  return createHash('sha256').update(repoUrl).digest('hex');
+  return createHash('sha256').update(repoUrl.trim().toLowerCase()).digest('hex').slice(0, 16);
 }
 
 export function loadRepoMemory(db: any, hash: string): VkenMemory {

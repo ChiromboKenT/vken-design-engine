@@ -34,7 +34,15 @@ import { renderDesignSystemPreview } from './design-system-preview.js';
 import { renderDesignSystemShowcase } from './design-system-showcase.js';
 import { createChatRunService } from './runs.js';
 import { createVkenRunService } from './vken/runs.js';
-import { executeDeterministicVkenRun } from './vken/run-pipeline.js';
+import { executeDeterministicVkenRun, recomputeScoreFromMaterialized } from './vken/run-pipeline.js';
+import { buildVkenWorkspaceIndexFromPath } from './vken/index-build.js';
+import { captureVkenWorkspace } from './vken/capture.js';
+import {
+  addFixedPatchCounts,
+  buildVkenProblemCategories,
+  categorizeVkenPatch,
+  categoryTotals,
+} from './vken/categories.js';
 import { providerInfo, chatCoder } from './vken/llm/client.js';
 import { initVirtualFs, applyPatchVirtual, scrubTo } from './vken/apply.js';
 import { proposePatches } from './vken/propose.js';
@@ -44,6 +52,8 @@ import { writeVkenBundle } from './vken/bundle.js';
 import { createVkenPullRequest } from './vken/pr.js';
 import { kb } from './vken/kb.js';
 import { scoreVkenIndex } from './vken/score.js';
+import { runKbBench } from './vken/kb-bench-core.js';
+import { verifyKbRule } from './vken/kb-signature.js';
 import { importClaudeDesignZip } from './claude-design-import.js';
 import { listPromptTemplates, readPromptTemplate } from './prompt-templates.js';
 import { buildDocumentPreview } from './document-preview.js';
@@ -62,6 +72,7 @@ import {
 } from './media-models.js';
 import { readMaskedConfig, writeConfig } from './media-config.js';
 import { readAppConfig, writeAppConfig } from './app-config.js';
+import { renderVkenOperatorPage } from './operator-page.js';
 import {
   buildProjectArchive,
   buildBatchArchive,
@@ -739,6 +750,65 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
   // build advertises --include-partial-messages) so the first /api/chat
   // hits a populated cache even if /api/agents hasn't been called yet.
   void detectAgents().catch(() => {});
+
+  app.get('/', (_req, res) => {
+    const info = providerInfo();
+    const seedPath = path.join(PROJECT_ROOT, 'kb', 'seed.jsonl');
+    const seedEntries = fs.existsSync(seedPath)
+      ? fs.readFileSync(seedPath, 'utf8').split(/\r?\n/).filter((line) => line.trim().length > 0).length
+      : 0;
+    const learnedEntries = db.prepare(`SELECT COUNT(*) AS count FROM vken_kb_rules`).get()?.count ?? 0;
+    const promotedEntries = db.prepare(`SELECT COUNT(*) AS count FROM vken_kb_rules WHERE tier >= 3`).get()?.count ?? 0;
+    const lastRun = db
+      .prepare(
+        `SELECT id, status, started_at AS startedAt, ended_at AS endedAt, created_at AS createdAt
+           FROM vken_runs
+          ORDER BY created_at DESC
+          LIMIT 1`,
+      )
+      .get();
+    const queuePending = db
+      .prepare(`SELECT COUNT(*) AS count FROM vken_runs WHERE status = 'queued'`)
+      .get()?.count ?? 0;
+    const webPort = process.env.OD_WEB_PORT || String(resolvedPort || port);
+    const bindHost = host === '0.0.0.0' || host === '::' ? '127.0.0.1' : host;
+    const logPath =
+      process.env.OD_DAEMON_LOG_PATH ??
+      path.join(PROJECT_ROOT, '.tmp', 'tools-dev', 'default', 'logs', 'daemon', 'latest.log');
+    res.type('html').send(
+      renderVkenOperatorPage({
+        status: 'running',
+        provider: {
+          id: info.id,
+          source: info.source,
+          vlModel: info.vlModel,
+          coderModel: info.coderModel,
+          fallback: 'cassette',
+        },
+        kb: {
+          seedEntries,
+          learnedEntries: Number(learnedEntries),
+          promotedEntries: Number(promotedEntries),
+        },
+        lastRun: lastRun
+          ? {
+              id: lastRun.id,
+              status: lastRun.status,
+              ageMs: Date.now() - Number(lastRun.endedAt ?? lastRun.startedAt ?? lastRun.createdAt),
+              durationMs:
+                lastRun.startedAt && lastRun.endedAt
+                  ? Number(lastRun.endedAt) - Number(lastRun.startedAt)
+                  : null,
+            }
+          : null,
+        queuePending: Number(queuePending),
+        pid: process.pid,
+        logsPath: logPath,
+        dataPath: path.join(RUNTIME_DATA_DIR, 'app.sqlite'),
+        cockpitUrl: `http://${bindHost}:${webPort}/vken`,
+      }),
+    );
+  });
 
   if (fs.existsSync(STATIC_DIR)) {
     app.use(express.static(STATIC_DIR));
@@ -3014,7 +3084,7 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
 
   app.post('/api/vken/runs', (req, res) => {
     const body = req.body || {};
-    if (!body.intake || (body.intake.kind !== 'sample' && body.intake.kind !== 'url')) {
+    if (!body.intake || !['sample', 'url', 'website'].includes(body.intake.kind)) {
       return sendApiError(res, 400, 'BAD_REQUEST', 'intake is required');
     }
     const run = vken.runs.create({ intake: body.intake });
@@ -3070,6 +3140,7 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
         opts: {
           sampleId: run.sampleId,
           byok: run.byok,
+          steers: run.steers,
         },
       });
       run.vfs = proposed.session;
@@ -3080,6 +3151,25 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
     } catch (err) {
       sendApiError(res, 500, 'INTERNAL_ERROR', err instanceof Error ? err.message : String(err));
     }
+  });
+
+  app.post('/api/vken/runs/:id/steer', (req, res) => {
+    const run = vken.runs.get(req.params.id);
+    if (!run) return sendApiError(res, 404, 'VKEN_NOT_FOUND', 'vken run not found');
+    const kind = req.body?.kind === 'discuss' ? 'discuss' : 'steer';
+    const text = cleanString(req.body?.text);
+    const patchId = cleanString(req.body?.patchId);
+    const answers = req.body?.answers && typeof req.body.answers === 'object' ? req.body.answers : {};
+    if (!text) return sendApiError(res, 400, 'BAD_REQUEST', 'text is required');
+    const payload = {
+      kind,
+      ...(patchId ? { patchId } : {}),
+      text,
+      answers,
+    };
+    run.steers = [...(run.steers ?? []), payload];
+    vken.runs.emit(run, 'vken:steer', payload);
+    res.json({ ok: true });
   });
 
   app.post('/api/vken/runs/:id/approve', async (req, res) => {
@@ -3098,6 +3188,8 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
           failed.push({ patchId, reason: 'patch not found' });
           continue;
         }
+        const patchCategories =
+          patch.categories && patch.categories.length > 0 ? patch.categories : categorizeVkenPatch(patch);
         const result = applyPatchVirtual(run.vfs, patch);
         if (!result.ok) {
           failed.push({ patchId, reason: result.reason });
@@ -3131,13 +3223,37 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
         } catch (error) {
           console.warn(`[vken:preview] ${error instanceof Error ? error.message : String(error)}`);
         }
+        if (run.previewServer?.url) {
+          try {
+            await captureAndEmitVkenCheckpoint({
+              run,
+              context,
+              baseUrl: run.previewServer.url,
+              checkpoint: patchId,
+            });
+          } catch (error) {
+            console.warn(`[vken:capture] ${error instanceof Error ? error.message : String(error)}`);
+          }
+        }
         run.patchesApproved = (run.patchesApproved ?? 0) + 1;
-        const score = scoreVkenIndex(context.index, {
-          designQuality: Math.min(1, (context.scoreDesignQuality ?? 0.5) + run.patchesApproved * 0.035),
+        run.categoryFixedByPatch = addFixedPatchCounts(run.categoryFixedByPatch, patchCategories);
+        const scoreDir =
+          run.previewServer?.materializedDir ??
+          ensurePreviewWorkspace({
+            session: run.vfs,
+            runDir: context.runDir,
+            checkpoint: patchId,
+          });
+        const categories = buildRunCategoriesFromWorkspace(run, scoreDir);
+        const previousScore = run.scoreFinal ?? run.scoreInitial ?? context.scoreInitial ?? 0;
+        const score = await recomputeScoreFromMaterialized({
+          runId: run.id,
+          db,
+          workspaceDir: scoreDir,
           when: 'scrub',
-          scoreBoost: run.patchesApproved * 0.25,
+          categories,
         });
-        run.scoreFinal = Math.max(run.scoreFinal ?? 0, score.value);
+        run.scoreFinal = score.value;
         db.prepare(`UPDATE vken_runs SET patches_approved = ?, score_final = ? WHERE id = ?`).run(
           run.patchesApproved,
           run.scoreFinal,
@@ -3147,9 +3263,9 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
           patchId,
           ok: true,
           previewUrl,
-          scoreDelta: Math.max(0.1, patch.impact),
-          pixelDeltaToInitial: 0.04,
+          scoreDelta: Number((score.value - previousScore).toFixed(2)),
           directionPicked: run.directionPicked,
+          categories,
         });
         vken.runs.emit(run, 'vken:score', score);
       }
@@ -3200,19 +3316,29 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
       } catch (error) {
         console.warn(`[vken:preview] ${error instanceof Error ? error.message : String(error)}`);
       }
-      const score = scoreVkenIndex(context.index, {
-        designQuality: checkpoint === 'initial' ? context.scoreDesignQuality : Math.min(1, (context.scoreDesignQuality ?? 0.5) + 0.04),
+      const scoreDir = ensurePreviewWorkspace({
+        session: run.vfs,
+        runDir: context.runDir,
+        checkpoint: checkpoint === 'initial' ? 'initial' : checkpoint.patchId,
+      });
+      const categories = buildRunCategoriesFromWorkspace(run, scoreDir);
+      const previousScore = run.scoreFinal ?? run.scoreInitial ?? context.scoreInitial ?? 0;
+      const score = await recomputeScoreFromMaterialized({
+        runId: run.id,
+        db,
+        workspaceDir: scoreDir,
         when: 'scrub',
+        categories,
       });
       vken.runs.emit(run, 'vken:apply', {
         patchId: checkpoint === 'initial' ? 'initial' : checkpoint.patchId,
         ok: true,
         previewUrl,
-        scoreDelta: checkpoint === 'initial' ? 0 : 0.3,
-        pixelDeltaToInitial: checkpoint === 'initial' ? 0 : 0.04,
+        scoreDelta: Number((score.value - previousScore).toFixed(2)),
+        categories,
       });
       vken.runs.emit(run, 'vken:score', score);
-      res.json({ scoreAt: score.value, pixelDeltaToInitial: checkpoint === 'initial' ? 0 : 0.04 });
+      res.json({ scoreAt: score.value, pixelDeltaToInitial: null });
     } catch (err) {
       sendApiError(res, 500, 'INTERNAL_ERROR', err instanceof Error ? err.message : String(err));
     }
@@ -3247,7 +3373,16 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
       });
       const patches = loadVkenPatches(run.id).filter((patch) => patch.status === 'applied');
       const scoreBefore = run.scoreInitial ?? context.scoreInitial ?? 0;
-      const scoreAfter = run.scoreFinal ?? Math.max(scoreBefore, scoreBefore + patches.length * 0.4);
+      const categories = buildRunCategoriesFromWorkspace(run, finalDir);
+      const finalScore = await recomputeScoreFromMaterialized({
+        runId: run.id,
+        db,
+        workspaceDir: finalDir,
+        when: 'final',
+        categories,
+      });
+      const scoreAfter = finalScore.value;
+      vken.runs.emit(run, 'vken:score', finalScore);
       const scorecard = { runId: run.id, scoreBefore, scoreAfter, validation, patches };
       const scorecardPath = path.join(context.runDir, 'scorecard.json');
       fs.writeFileSync(scorecardPath, JSON.stringify(scorecard, null, 2));
@@ -3264,11 +3399,13 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
       if (validation.ok) {
         committedRules = kb.commit({ db, runId: run.id });
         for (const rule of committedRules) {
+          const promotion = await kb.tryPromoteToTier3({ db, ruleId: rule.id });
           vken.runs.emit(run, 'vken:learn', {
             ruleId: rule.id,
             ruleText: rule.rule_text,
             evidenceRunIds: rule.evidence_runs,
-            status: 'accepted',
+            status: promotion.promoted ? 'accepted' : 'proposed',
+            reason: promotion.reason,
           });
         }
         vken.runs.emit(run, 'vken:learn', { done: true });
@@ -3285,6 +3422,7 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
           scoreAfter,
           directionName: loadVkenDirection(run.directionPicked, run.id)?.name ?? 'Unspecified',
           patches,
+          validation,
           bundleUrl: run.bundleUrl,
           replayUrl: `/vken/run/${encodeURIComponent(run.id)}`,
         });
@@ -3335,7 +3473,21 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
   });
 
   app.get('/api/vken/provider/info', (req, res) => {
-    res.json(providerInfo({ byok: req.byok }));
+    const info = providerInfo({ byok: req.byok });
+    const publicBaseUrl = process.env.VKEN_VLLM_PUBLIC_URL ?? process.env.VKEN_VLLM_CODER_PUBLIC_URL;
+    res.json({
+      ...info,
+      ...(publicBaseUrl
+        ? {
+            amdPreset: {
+              baseUrl: publicBaseUrl,
+              token: process.env.VKEN_VLLM_PUBLIC_TOKEN,
+              vlModel: process.env.VKEN_VLLM_VL_MODEL ?? 'Qwen/Qwen2.5-VL-72B-Instruct',
+              coderModel: process.env.VKEN_VLLM_CODER_MODEL ?? 'Qwen/Qwen3-Coder-30B-A3B-Instruct',
+            },
+          }
+        : {}),
+    });
   });
 
   app.post('/api/vken/llm/test', async (req, res) => {
@@ -3366,17 +3518,40 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
         `SELECT id, finding_type AS findingType, framework, severity, rule_text AS ruleText,
                 accept_count AS acceptCount, reject_count AS rejectCount,
                 avg_score_delta AS avgScoreDelta, evidence_runs AS evidenceRuns,
-                updated_at AS updatedAt
+                signature, tier, created_at AS createdAt, updated_at AS updatedAt
            FROM vken_kb_rules
-          ORDER BY accept_count DESC, updated_at DESC
+          ORDER BY tier DESC, accept_count DESC, updated_at DESC
           LIMIT 100`,
       )
       .all()
       .map((row) => ({
         ...row,
         evidenceRuns: JSON.parse(row.evidenceRuns || '[]'),
+        status: row.rejectCount > row.acceptCount ? 'quarantined' : 'active',
+        signatureVerified: verifyKbRule({
+          id: row.id,
+          findingType: row.findingType,
+          ruleText: row.ruleText,
+          createdAt: row.createdAt,
+          signature: row.signature,
+        }),
       }));
     res.json({ rules: rows, generatedAt: Date.now() });
+  });
+
+  let kbBenchCache = null;
+  app.get('/api/vken/kb/bench', async (req, res) => {
+    const variant = req.query.variant === 'seed-only' ? 'seed-only' : 'seed+learned';
+    const now = Date.now();
+    if (kbBenchCache?.variant === variant && now - kbBenchCache.generatedAt < 60_000) {
+      return res.json(kbBenchCache);
+    }
+    try {
+      kbBenchCache = await runKbBench({ projectRoot: PROJECT_ROOT, variant });
+      res.json(kbBenchCache);
+    } catch (error) {
+      sendApiError(res, 500, 'INTERNAL_ERROR', error instanceof Error ? error.message : String(error));
+    }
   });
 
   app.get('/api/vken/kb/:ruleId', (req, res) => {
@@ -3385,7 +3560,7 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
         `SELECT id, finding_type AS findingType, framework, severity, rule_text AS ruleText,
                 accept_count AS acceptCount, reject_count AS rejectCount,
                 avg_score_delta AS avgScoreDelta, evidence_runs AS evidenceRuns,
-                signature, created_at AS createdAt, updated_at AS updatedAt
+                signature, tier, created_at AS createdAt, updated_at AS updatedAt
            FROM vken_kb_rules
           WHERE id = ?`,
       )
@@ -3393,8 +3568,25 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
     if (!row) return sendApiError(res, 404, 'VKEN_NOT_FOUND', 'KB rule not found');
     const examples = db
       .prepare(`SELECT * FROM vken_kb_examples WHERE rule_id = ? ORDER BY created_at DESC LIMIT 20`)
-      .all(req.params.ruleId);
-    res.json({ rule: { ...row, evidenceRuns: JSON.parse(row.evidenceRuns || '[]') }, examples });
+      .all(req.params.ruleId)
+      .map((example) => ({
+        ...example,
+        patch: parseJsonOrUndef(example.patch_json),
+      }));
+    res.json({
+      rule: {
+        ...row,
+        evidenceRuns: JSON.parse(row.evidenceRuns || '[]'),
+        signatureVerified: verifyKbRule({
+          id: row.id,
+          findingType: row.findingType,
+          ruleText: row.ruleText,
+          createdAt: row.createdAt,
+          signature: row.signature,
+        }),
+      },
+      examples,
+    });
   });
 
   app.get('/api/vken/leaderboard', (_req, res) => {
@@ -3425,6 +3617,44 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
     res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     res.sendFile(row.screenshotPath);
   });
+
+  async function captureAndEmitVkenCheckpoint({ run, context, baseUrl, checkpoint }) {
+    const captures = await captureVkenWorkspace({
+      runId: run.id,
+      runDir: context.runDir,
+      index: context.index,
+      baseUrl,
+      checkpoint,
+    });
+    for (const capture of captures) {
+      db.prepare(
+        `INSERT INTO vken_captures
+          (id, run_id, checkpoint, route_path, viewport, screenshot_path, aria_yaml,
+           css_vars_json, box_models_json, console_json, captured_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).run(
+        capture.id,
+        run.id,
+        checkpoint,
+        capture.routePath,
+        capture.viewport,
+        capture.screenshotPath,
+        capture.ariaYaml,
+        capture.cssVarsJson,
+        capture.boxModelsJson,
+        capture.consoleJson,
+        capture.capturedAt,
+      );
+      vken.runs.emit(run, 'vken:capture', {
+        checkpoint,
+        routePath: capture.routePath,
+        viewport: capture.viewport,
+        screenshotUrl: `/api/vken/captures/${capture.id}/screenshot.png`,
+      });
+    }
+    vken.runs.emit(run, 'vken:capture', { checkpoint, done: true, count: captures.length });
+    return captures;
+  }
 
   function hydrateVkenRunContext(run) {
     const row = db
@@ -3513,7 +3743,7 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
   }
 
   function parseVkenPatchRow(row) {
-    return {
+    const patch = {
       id: row.id,
       findingIds: JSON.parse(row.findingIds || '[]'),
       filePath: row.filePath,
@@ -3529,6 +3759,29 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
       evidenceKbIds: JSON.parse(row.evidenceKbIds || '[]'),
       status: row.status,
     };
+    return { ...patch, categories: categorizeVkenPatch(patch) };
+  }
+
+  function loadVkenFindingsForCategories(runId) {
+    return db
+      .prepare(
+        `SELECT id, dimension, severity, description, affected_files AS affectedFiles
+           FROM vken_findings
+          WHERE run_id = ?
+          ORDER BY created_at`,
+      )
+      .all(runId);
+  }
+
+  function buildRunCategoriesFromWorkspace(run, workspaceDir) {
+    const index = buildVkenWorkspaceIndexFromPath(workspaceDir);
+    const categories = buildVkenProblemCategories(index, {
+      totals: run.categoryTotals,
+      fixedByPatch: run.categoryFixedByPatch,
+      findings: loadVkenFindingsForCategories(run.id),
+    });
+    run.categoryTotals = categoryTotals(categories);
+    return categories;
   }
 
   app.get('/api/runs', (req, res) => {

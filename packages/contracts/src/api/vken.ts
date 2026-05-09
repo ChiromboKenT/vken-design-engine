@@ -6,10 +6,30 @@ export type VkenRiskLevel = 'low' | 'medium' | 'high';
 export type VkenSeverity = 'P0' | 'P1' | 'P2' | 'P3';
 export type VkenPatchStatus = 'proposed' | 'approved' | 'skipped' | 'applied' | 'reverted';
 export type VkenPatchFormat = 'search-replace';
+export type VkenProblemCategoryId = 'tokens' | 'spacing' | 'contrast' | 'repetition';
+
+export interface VkenProblemEvidence {
+  file: string;
+  line?: number;
+  label: string;
+  value?: string;
+  severity?: VkenSeverity;
+}
+
+export interface VkenProblemCategoryBreakdown {
+  category: VkenProblemCategoryId;
+  label: string;
+  total: number;
+  remaining: number;
+  fixed: number;
+  queued: number;
+  evidence: VkenProblemEvidence[];
+}
 
 export interface VkenCreateRunRequest {
   intake:
     | { kind: 'url'; url: string }
+    | { kind: 'website'; url: string }
     | { kind: 'sample'; sampleId: VkenSampleId };
   enableRepoMemory?: boolean;
 }
@@ -43,7 +63,7 @@ export interface VkenScrubRequest {
 
 export interface VkenScrubResponse {
   scoreAt: number;
-  pixelDeltaToInitial: number;
+  pixelDeltaToInitial: number | null;
 }
 
 export interface VkenFinalizeResponse {
@@ -123,6 +143,7 @@ export interface VkenDirection {
 export interface VkenPatch {
   id: string;
   findingIds: string[];
+  categories?: VkenProblemCategoryId[];
   filePath: string;
   format: VkenPatchFormat;
   hunks: Array<{ search: string; replace: string }>;
@@ -142,6 +163,12 @@ export interface VkenProviderInfoResponse {
   vlModel: string;
   coderModel: string;
   source: 'env' | 'header';
+  amdPreset?: {
+    baseUrl: string;
+    token?: string;
+    vlModel: string;
+    coderModel: string;
+  };
 }
 
 export interface VkenKbRuleSummary {
@@ -154,10 +181,34 @@ export interface VkenKbRuleSummary {
   rejectCount: number;
   avgScoreDelta: number;
   evidenceRuns: string[];
+  tier: 2 | 3;
+  status: 'active' | 'quarantined' | 'retired';
+  signatureVerified: boolean;
   updatedAt: number;
 }
 
 export interface VkenKbListResponse {
   rules: VkenKbRuleSummary[];
   generatedAt: number;
+}
+
+export interface VkenKbBenchDelta {
+  sample: VkenSampleId;
+  scoreInitial: number;
+  scoreFinal: number;
+  delta: number;
+  patchesApplied: number;
+  rulesApplied: string[];
+}
+
+export interface VkenKbBenchResponse {
+  variant: 'seed-only' | 'seed+learned';
+  deltas: VkenKbBenchDelta[];
+  aggregate: number;
+  generatedAt: number;
+  ruleCounts: {
+    seed: number;
+    learned: number;
+    signed: number;
+  };
 }

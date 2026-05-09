@@ -5,16 +5,17 @@ import { Icon } from './Icon';
 interface Props {
   actions?: ReactNode;
   children?: ReactNode;
+  subHeader?: ReactNode;
   onBack?: () => void;
   backLabel?: string;
 }
 
-export function AppChromeHeader({ actions, children, onBack, backLabel }: Props) {
+export function AppChromeHeader({ actions, children, subHeader, onBack, backLabel }: Props) {
   const t = useT();
   const resolvedBackLabel = backLabel ?? t('project.backToProjects');
 
-  return (
-    <header className="app-chrome-header">
+  const mainRow = (
+    <>
       <div className="app-chrome-traffic-space" aria-hidden />
       <div className="app-chrome-brand" aria-label={t('app.brand')}>
         <span className="app-chrome-mark" aria-hidden>
@@ -37,6 +38,21 @@ export function AppChromeHeader({ actions, children, onBack, backLabel }: Props)
       {children ? <div className="app-chrome-content">{children}</div> : null}
       <div className="app-chrome-drag" aria-hidden />
       {actions ? <div className="app-chrome-actions">{actions}</div> : null}
+    </>
+  );
+
+  if (subHeader) {
+    return (
+      <header className="app-chrome-header app-chrome-header-with-subheader">
+        <div className="app-chrome-main-row">{mainRow}</div>
+        <div className="app-chrome-subheader">{subHeader}</div>
+      </header>
+    );
+  }
+
+  return (
+    <header className="app-chrome-header">
+      {mainRow}
     </header>
   );
 }

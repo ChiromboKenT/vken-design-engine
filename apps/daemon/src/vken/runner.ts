@@ -13,12 +13,35 @@ export async function startViteDevServer(input: {
   workspacePath: string;
   timeoutMs?: number;
 }): Promise<VkenDevServer> {
+  return startViteServer({
+    workspacePath: input.workspacePath,
+    ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }),
+    args: (port) => ['--host', '127.0.0.1', '--port', String(port), '--strictPort'],
+  });
+}
+
+export async function spawnVitePreview(input: {
+  workspacePath: string;
+  timeoutMs?: number;
+}): Promise<VkenDevServer> {
+  return startViteServer({
+    workspacePath: input.workspacePath,
+    ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }),
+    args: (port) => ['preview', '--host', '127.0.0.1', '--port', String(port), '--strictPort'],
+  });
+}
+
+async function startViteServer(input: {
+  workspacePath: string;
+  timeoutMs?: number;
+  args: (port: number) => string[];
+}): Promise<VkenDevServer> {
   const port = await getFreePort();
   const url = `http://127.0.0.1:${port}`;
   const viteBin = path.join(input.workspacePath, 'node_modules', 'vite', 'bin', 'vite.js');
   const child = spawn(
     process.execPath,
-    [viteBin, '--host', '127.0.0.1', '--port', String(port), '--strictPort'],
+    [viteBin, ...input.args(port)],
     {
       cwd: input.workspacePath,
       env: { ...process.env, BROWSER: 'none' },

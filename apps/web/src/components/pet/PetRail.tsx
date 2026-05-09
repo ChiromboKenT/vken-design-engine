@@ -8,6 +8,7 @@ import { PetSpriteFace } from './PetSpriteFace';
 
 interface Props {
   config: AppConfig;
+  healState?: PetHealState;
   // Adopt + wake a built-in or the user's custom pet inline. The rail
   // wires this to the saved config so picks survive across reloads
   // without bouncing the user into Settings for the common case.
@@ -24,6 +25,8 @@ interface Props {
   onHide?: () => void;
 }
 
+export type PetHealState = 'watching' | 'worried' | 'cheering' | 'resting';
+
 const COLLAPSED_KEY = 'vken:pet-rail-collapsed';
 const LEGACY_COLLAPSED_KEY = 'open-design:pet-rail-collapsed';
 
@@ -39,7 +42,14 @@ function loadCollapsed(): boolean {
 // Vertical pet column rendered to the right of the entry view's main
 // content. Doubles as a discovery surface (un-adopted users see the
 // full catalog inline) and a switcher (adopted users tap to swap).
-export function PetRail({ config, onAdoptInline, onOpenPetSettings, onTuck, onHide }: Props) {
+export function PetRail({
+  config,
+  healState = 'resting',
+  onAdoptInline,
+  onOpenPetSettings,
+  onTuck,
+  onHide,
+}: Props) {
   const t = useT();
   const [collapsed, setCollapsed] = useState<boolean>(() => loadCollapsed());
   const pet: PetConfig = config.pet ?? { ...DEFAULT_PET, custom: defaultCustomPet() };
@@ -56,7 +66,7 @@ export function PetRail({ config, onAdoptInline, onOpenPetSettings, onTuck, onHi
 
   if (collapsed) {
     return (
-      <aside className="pet-rail collapsed" aria-label={t('pet.railAria')}>
+      <aside className={`pet-rail collapsed heal-${healState}`} aria-label={t('pet.railAria')}>
         <button
           type="button"
           className="pet-rail-toggle"
@@ -72,7 +82,7 @@ export function PetRail({ config, onAdoptInline, onOpenPetSettings, onTuck, onHi
   }
 
   return (
-    <aside className="pet-rail" aria-label={t('pet.railAria')}>
+    <aside className={`pet-rail heal-${healState}`} aria-label={t('pet.railAria')}>
       <header className="pet-rail-head">
         <div className="pet-rail-title">
           <span aria-hidden>🐾</span>
@@ -101,6 +111,10 @@ export function PetRail({ config, onAdoptInline, onOpenPetSettings, onTuck, onHi
           ) : null}
         </div>
       </header>
+      <div className="pet-rail-heal-state" data-state={healState}>
+        <Icon name={healState === 'worried' ? 'bell' : healState === 'cheering' ? 'sparkles' : 'eye'} size={12} />
+        <span>{healStateLabel(healState)}</span>
+      </div>
       <p className="pet-rail-hint">{t('pet.railHint')}</p>
       <div className="pet-rail-status">
         {pet.adopted ? (
@@ -176,4 +190,11 @@ export function PetRail({ config, onAdoptInline, onOpenPetSettings, onTuck, onHi
       </button>
     </aside>
   );
+}
+
+function healStateLabel(state: PetHealState): string {
+  if (state === 'watching') return 'Watching repair';
+  if (state === 'worried') return 'Needs review';
+  if (state === 'cheering') return 'Patch landed';
+  return 'Resting';
 }

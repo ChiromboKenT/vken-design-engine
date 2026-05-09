@@ -39,10 +39,30 @@ export type VkenViewport = 'desktop' | 'tablet' | 'mobile';
 export type VkenRiskLevel = 'low' | 'medium' | 'high';
 export type VkenSeverity = 'P0' | 'P1' | 'P2' | 'P3';
 export type VkenPatchStatus = 'proposed' | 'approved' | 'skipped' | 'applied' | 'reverted';
+export type VkenProblemCategoryId = 'tokens' | 'spacing' | 'contrast' | 'repetition';
+
+export interface VkenProblemEvidence {
+  file: string;
+  line?: number;
+  label: string;
+  value?: string;
+  severity?: VkenSeverity;
+}
+
+export interface VkenProblemCategoryBreakdown {
+  category: VkenProblemCategoryId;
+  label: string;
+  total: number;
+  remaining: number;
+  fixed: number;
+  queued: number;
+  evidence: VkenProblemEvidence[];
+}
 
 export interface VkenCreateRunRequest {
   intake:
     | { kind: 'url'; url: string }
+    | { kind: 'website'; url: string }
     | { kind: 'sample'; sampleId: VkenSampleId };
   enableRepoMemory?: boolean;
 }
@@ -75,6 +95,7 @@ export interface VkenWorkspaceIndex {
 export interface VkenScorePayload {
   when: 'initial' | 'final' | 'scrub';
   value: number;
+  categories?: VkenProblemCategoryBreakdown[];
   dimensions: {
     designQuality: number;
     tokenCoverage: number;
@@ -99,6 +120,7 @@ export interface VkenDirection {
 export interface VkenPatch {
   id: string;
   findingIds: string[];
+  categories?: VkenProblemCategoryId[];
   filePath: string;
   format: 'search-replace';
   hunks: Array<{ search: string; replace: string }>;

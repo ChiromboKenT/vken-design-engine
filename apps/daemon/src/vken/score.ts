@@ -1,11 +1,11 @@
-import type { VkenScorePayload, VkenWorkspaceIndex } from './types.js';
+import type { VkenProblemCategoryBreakdown, VkenScorePayload, VkenWorkspaceIndex } from './types.js';
 
 export function scoreVkenIndex(
   index: VkenWorkspaceIndex,
   opts: {
     designQuality?: number | undefined;
     when?: VkenScorePayload['when'] | undefined;
-    scoreBoost?: number | undefined;
+    categories?: VkenProblemCategoryBreakdown[] | undefined;
   } = {},
 ): VkenScorePayload {
   const tokenCoverage = clamp01(index.tokens.coverageRatio);
@@ -22,11 +22,11 @@ export function scoreVkenIndex(
       neuroinclusive * 0.12 +
       responsive * 0.14 +
       buildHealth * 0.14) *
-      10 +
-    (opts.scoreBoost ?? 0);
+    10;
   return {
     when: opts.when ?? 'initial',
-    value: Math.round(value * 10) / 10,
+    value: Math.round(value * 100) / 100,
+    ...(opts.categories ? { categories: opts.categories } : {}),
     dimensions: {
       designQuality,
       tokenCoverage,

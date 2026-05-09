@@ -4,11 +4,11 @@ import { spawnSync } from 'node:child_process';
 import type { VkenCreateRunRequest, VkenSampleId } from './types.js';
 
 export interface VkenIntakeResult {
-  source: 'sample' | 'url';
+  source: 'sample' | 'url' | 'website';
   sourceRef: string;
   repoName: string;
   workspacePath: string;
-  framework: 'vite-react-tailwind';
+  framework: 'vite-react-tailwind' | 'website-capture';
   packageManager: 'npm' | 'pnpm' | 'yarn' | 'bun';
   tailwindVersion: 3 | 4;
 }
@@ -82,6 +82,37 @@ export function intakeFromUrl(
   });
 }
 
+export function intakeFromWebsite(
+  url: string,
+  opts: { dataDir: string; runId: string },
+): VkenIntakeResult {
+  const cleanUrl = url.trim();
+  let parsed: URL;
+  try {
+    parsed = new URL(cleanUrl);
+  } catch {
+    throw new VkenIntakeError('VKEN_INTAKE_FAILED', 'Enter a valid public http or https URL.');
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new VkenIntakeError('VKEN_INTAKE_FAILED', 'Only public http and https URLs are supported.');
+  }
+  if (isPrivateHost(parsed.hostname)) {
+    throw new VkenIntakeError('VKEN_INTAKE_FAILED', 'Private and local network URLs are not supported.');
+  }
+  const workspacePath = path.join(opts.dataDir, 'vken', 'website-targets', opts.runId);
+  fs.mkdirSync(workspacePath, { recursive: true });
+  fs.writeFileSync(path.join(workspacePath, 'target-url.txt'), cleanUrl);
+  return {
+    source: 'website',
+    sourceRef: cleanUrl,
+    repoName: parsed.hostname.replace(/^www\./, ''),
+    workspacePath,
+    framework: 'website-capture',
+    packageManager: 'npm',
+    tailwindVersion: 4,
+  };
+}
+
 export function resolveVkenIntake(
   projectRoot: string,
   request: VkenCreateRunRequest,
@@ -91,6 +122,7 @@ export function resolveVkenIntake(
   if (!opts) {
     throw new VkenIntakeError('VKEN_INTAKE_FAILED', 'URL intake requires a run-scoped clone directory');
   }
+  if (request.intake.kind === 'website') return intakeFromWebsite(request.intake.url, opts);
   return intakeFromUrl(request.intake.url, opts);
 }
 
@@ -168,4 +200,20 @@ function directorySize(root: string): number {
     else total += stat.size;
   }
   return total;
+}
+
+function isPrivateHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  if (host === 'localhost' || host.endsWith('.localhost')) return true;
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) {
+    const [a = 0, b = 0] = host.split('.').map((part) => Number(part));
+    return (
+      a === 10 ||
+      a === 127 ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168)
+    );
+  }
+  return false;
 }

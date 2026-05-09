@@ -173,6 +173,7 @@ function migrate(db) {
       patches_approved  INTEGER DEFAULT 0,
       pr_url            TEXT,
       bundle_path       TEXT,
+      repo_hash         TEXT,
       vllm_input_tokens INTEGER DEFAULT 0,
       vllm_output_tokens INTEGER DEFAULT 0,
       created_at        INTEGER NOT NULL
@@ -269,6 +270,7 @@ function migrate(db) {
       avg_score_delta REAL NOT NULL DEFAULT 0,
       evidence_runs   TEXT NOT NULL,
       signature       TEXT NOT NULL,
+      tier            INTEGER NOT NULL DEFAULT 2,
       created_at      INTEGER NOT NULL,
       updated_at      INTEGER NOT NULL
     );
@@ -364,6 +366,14 @@ function migrate(db) {
       CREATE INDEX IF NOT EXISTS idx_vken_captures_run_cp
         ON vken_captures(run_id, checkpoint, route_path, viewport);
     `);
+  }
+  const vkenRunCols = db.prepare(`PRAGMA table_info(vken_runs)`).all();
+  if (!vkenRunCols.some((c) => c.name === 'repo_hash')) {
+    db.exec(`ALTER TABLE vken_runs ADD COLUMN repo_hash TEXT`);
+  }
+  const vkenRuleCols = db.prepare(`PRAGMA table_info(vken_kb_rules)`).all();
+  if (!vkenRuleCols.some((c) => c.name === 'tier')) {
+    db.exec(`ALTER TABLE vken_kb_rules ADD COLUMN tier INTEGER NOT NULL DEFAULT 2`);
   }
 }
 
