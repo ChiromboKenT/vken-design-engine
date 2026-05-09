@@ -81,22 +81,91 @@ Stages render in pipeline order. Only the active card is expanded; finished card
 ```
 ✓  Capture       3 routes screenshotted · 1.2s
 ✓  Findings      61 problems across 4 categories
-▼  Proposing     P2 · "Introduce shared VKEN tokens before
-                  replacing repeated literal design values"
-                  src/styles.css   evidence: 1
-                  - :root { --bg: #fff }
-                  + :root { --bg: var(--vken-surface) }
-                  [Approve]  [Discuss]  [Reject]  [Steer]
+▼  Proposing     Patch 1 of 8  ────────────────────────────────
+                  ┌─ Summary ──────────────────── [Code view] ─┐
+                  │ "Three different shades of gray are used    │
+                  │  for secondary text. Replacing them with    │
+                  │  one shared value makes the page feel       │
+                  │  more consistent and easier to update."     │
+                  │                                             │
+                  │ src/styles.css · 1 line · Token gap         │
+                  └─────────────────────────────────────────────┘
+                  [ Live preview ]  [Approve]  [Discuss]  [Reject]
 ○  Validating    waiting
 ○  Finalize      waiting
 ```
 
+**Summary / Code toggle** — each patch card defaults to the plain-English Summary view. A "Code view" chip in the card header switches to the raw diff. The toggle state is per-card and persists until the card collapses. Code view shows:
+
+```
+  - color: #667085;
+  + color: var(--vken-text-secondary);
+```
+
+Nothing else. No line numbers, no file path repeated, just the diff. "Summary view" chip switches back.
+
+**Sequential patch ordering — no collisions** — patches are applied to a virtual FS session in strict pipeline order. Each patch's `search` string is matched against the *already-patched* file state, not the original. The pipeline enforces:
+
+1. Token-defining patches first (`:root { ... }` additions) before any patch that references those tokens.
+2. Patches to the same file are batched and applied top-to-bottom by line number to eliminate offset drift.
+3. If a patch's `search` string no longer matches after prior patches landed, it is automatically marked `skipped` with reason "superseded" — it never reaches the user as a broken card.
+4. The notebook renders patches in their enforced order, numbered `Patch 1 of 8`, `Patch 2 of 8`, etc. The user can only act on the topmost unresolved patch; subsequent cards are locked (visually dim) until the one above is resolved. This prevents approve-order collisions entirely.
+
+**Complete patch card states** — every state is defined and has a distinct visual:
+
+| State | Border | Badge | Actions visible |
+|---|---|---|---|
+| `locked` | `sandLight` dashed | dim number | none (unlocks when prior resolves) |
+| `proposed` | `sandLight` solid | patch number | Live preview · Approve · Discuss · Reject |
+| `previewing` | `copperWarm` pulse | [Live] pill | Approve · Dismiss preview · Discuss · Reject |
+| `approved` | `forestMid` | [CheckCircle] Approved | Undo (until validation starts) |
+| `rejected` | `stone` | [XCircle] Rejected | Undo |
+| `validating` | `copperWarm` static | [Spinner] Validating… | none |
+| `validated` | `forestDeep` | [CheckCircle] Confirmed | — |
+| `regression` | `error` | [AlertTriangle] Regression | Re-steer · Reject |
+| `skipped` | `sandLight` dashed | [Skip] Superseded | — |
+
+No state is ambiguous. The user always knows exactly where a patch stands.
+
+**Live preview behavior:**
+- CSS-only patches: daemon injects a `<style>` tag into the patient pane iframe via `postMessage`. Instant rerender, no file write, no server round-trip. Patient pane shows a `[Live]` badge while preview is active. Clicking anywhere outside the card or "Dismiss preview" removes the injection.
+- Non-CSS patches (JSX/HTML): "Live preview" triggers a fast server-side screenshot with the patch applied to the virtual FS. Result replaces the patient pane's after-capture. Latency is ~2–4s; a spinner on the patient pane communicates this.
+
 - New events animate in at the active card with a 200ms fade. `prefers-reduced-motion: reduce` → instant.
-- Only one card is ever expanded at a time. Clicking a collapsed card replaces the active.
+- Only the topmost unresolved patch is ever `proposed`; all others below are `locked` until it resolves.
 
 ### Sticky bottom — approve bar
 
 `[ Approve top patch ]  [ Reject ]  [ Discuss in chat ]` — always visible.
+
+## Patient pane — making improvements unambiguous
+
+The current before/after toggle hides one state at a time, so the improvement is never visually obvious. Replace it with three mechanisms:
+
+**1. Reveal slider (drag to compare)** — a vertical drag handle sits over the patient pane iframe. Left of the handle shows the original capture; right shows the live or validated after-state. The user drags to reveal as much of each as they want. The handle is keyboard-accessible (left/right arrow keys, 10% increments). This is unambiguous: the user literally uncovers the improvement.
+
+```
+┌──────────────────────────────────────┐
+│  BEFORE     │drag│  AFTER            │
+│  ░░░░░░░░░  ◀──▶  ████████████████  │
+│  old grays       → consistent tokens │
+└──────────────────────────────────────┘
+```
+
+**2. Animated count delta on category bars** — when a patch lands, the relevant category bar's count ticks down with a 300ms counter animation and the bar segment shrinks. The number itself flashes `forestLight` briefly (200ms) before settling. Non-motion users get an instant jump with no flash. This makes "the engine is working" viscerally obvious without any extra UI chrome.
+
+**3. Improvement caption strip** — a fixed strip below the patient pane (never scrolls) shows the plain-English summary of the most recently approved patch in a single sentence. Resets when the next patch becomes active. Example:
+
+```
+[CheckCircle]  Just fixed: "All buttons now share one consistent corner size." · src/styles.css
+```
+
+This gives a continuous plain-English running commentary of what changed, visible at all times without opening any card.
+
+**What "unambiguous" means concretely:**
+- The reveal slider must span the full height of the patient pane — not a thumbnail. The improvement must be visible at the scale the design actually renders.
+- The after-state used in the slider is a real re-captured screenshot (or CSS-injected live view), not a mock. The user is looking at the actual outcome.
+- Category bars must reach 0 for resolved categories before the run ends — not linger at 1 due to rounding. If a category is fully resolved, its bar disappears and the row gets a `[CheckCircle] All fixed` inline label.
 
 ## Suggestion pickers (reuse `QuestionFormView`)
 
@@ -214,8 +283,11 @@ VKEN daemon · operator status
 - `apps/web/src/components/vken/Workshop.tsx` — replaces `Cockpit.tsx`.
 - `apps/web/src/components/vken/PatientPane.tsx` — preview iframe + before/after toggle + caption.
 - `apps/web/src/components/vken/Notebook.tsx` — sticky bars + scroll stage list + sticky approve bar.
-- `apps/web/src/components/vken/StageCard.tsx` — one card per stage, expand/collapse logic.
-- `apps/web/src/components/vken/CategoryBars.tsx` — bucket bar chart in OKLCH.
+- `apps/web/src/components/vken/StageCard.tsx` — one card per pipeline stage, expand/collapse logic.
+- `apps/web/src/components/vken/PatchCard.tsx` — single patch with all 9 states, summary/code toggle, live preview trigger.
+- `apps/web/src/components/vken/CategoryBars.tsx` — bucket bar chart in OKLCH, animated count deltas.
+- `apps/web/src/components/vken/RevealSlider.tsx` — drag-to-compare before/after slider over the patient pane.
+- `apps/web/src/components/vken/ImprovementCaption.tsx` — sticky single-sentence plain-English caption strip.
 - `apps/web/src/components/vken/SteerForm.tsx` — wrapper around `QuestionFormView` for steer/discuss/direction.
 - `apps/web/src/components/vken/tokens.css` — palette variables.
 
