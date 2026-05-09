@@ -12,11 +12,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
+      - name: Prepare Space export
+        run: |
+          # Orphan commit so HF never sees history with large assets
+          git checkout --orphan space-export
+          # Strip video assets — not in Dockerfile COPY and > 10 MiB HF limit
+          git rm -rf --cached assets/prompt-templates/video/ || true
+          git -c user.email="ci@open-design.dev" -c user.name="Open Design CI" \
+              commit -m "chore: sync to HuggingFace Space"
       - name: Push to Space
         env:
           HF_SPACE_REPO: ${{ vars.HF_SPACE_REPO }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           git remote add hf-space "https://oauth2:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_REPO}"
-          git push hf-space HEAD:main --force
+          git push hf-space space-export:main --force
