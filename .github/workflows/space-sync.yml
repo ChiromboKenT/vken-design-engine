@@ -9,14 +9,14 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    if: ${{ secrets.HF_SPACE_REPO != '' && secrets.HF_TOKEN != '' }}
+    if: ${{ vars.HF_SPACE_REPO != '' && secrets.HF_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Push to Space
         env:
-          HF_SPACE_REPO: ${{ secrets.HF_SPACE_REPO }}
+          HF_SPACE_REPO: ${{ vars.HF_SPACE_REPO }}
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           git remote add hf-space "https://oauth2:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE_REPO}"
