@@ -3,6 +3,8 @@ import path from 'node:path';
 import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
 import type { VkenCreateRunRequest, VkenSampleId } from './types.js';
 
+const DEFAULT_REPO_SIZE_LIMIT_MB = 200;
+
 export interface VkenIntakeResult {
   source: 'sample' | 'url' | 'website';
   sourceRef: string;
@@ -71,15 +73,25 @@ export function intakeFromUrl(
     );
   }
   const sizeMb = directorySize(resolvedClone) / 1024 / 1024;
-  if (sizeMb > 50) {
+  const sizeLimitMb = repoSizeLimitMb();
+  if (sizeMb > sizeLimitMb) {
     fs.rmSync(resolvedClone, { recursive: true, force: true });
-    throw new VkenIntakeError('VKEN_REPO_TOO_LARGE', `Repository is ${sizeMb.toFixed(1)} MB; limit is 50 MB.`);
+    throw new VkenIntakeError(
+      'VKEN_REPO_TOO_LARGE',
+      `Repository is ${sizeMb.toFixed(1)} MB; limit is ${sizeLimitMb} MB. Set VKEN_REPO_SIZE_LIMIT_MB to raise it for trusted deployments.`,
+    );
   }
   return detectSupportedWorkspace({
     source: 'url',
     sourceRef: cleanUrl,
     workspacePath: resolvedClone,
   });
+}
+
+export function repoSizeLimitMb(): number {
+  const configured = Number(process.env.VKEN_REPO_SIZE_LIMIT_MB);
+  if (!Number.isFinite(configured) || configured <= 0) return DEFAULT_REPO_SIZE_LIMIT_MB;
+  return configured;
 }
 
 function formatGitCloneFailure(result: SpawnSyncReturns<string>): string {

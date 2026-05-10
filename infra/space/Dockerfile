@@ -67,4 +67,5 @@ RUN chmod +x infra/space/entrypoint.sh
 EXPOSE 7860
 ENV PORT=7860
 ENV OD_DATA_DIR=/data
+ENV VKEN_REPO_SIZE_LIMIT_MB=200
 ENTRYPOINT ["infra/space/entrypoint.sh"]
