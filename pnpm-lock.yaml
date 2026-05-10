@@ -72,6 +72,9 @@ importers:
       '@types/node':
         specifier: ^20.17.10
         version: 20.19.39
+      '@types/pngjs':
+        specifier: ^6.0.5
+        version: 6.0.5
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
@@ -1755,6 +1758,9 @@ packages:
 
   '@types/plist@3.0.5':
     resolution: {integrity: sha512-E6OCaRmAe4WDmWNsL/9RMqdkkzDCY1etutkflWk4c+AcjDU07Pcz1fQwTX0TQz+Pxqn9i4L1TU3UFpjnrcDgxA==}
+
+  '@types/pngjs@6.0.5':
+    resolution: {integrity: sha512-0k5eKfrA83JOZPppLtS2C7OUtyNAl2wKNxfyYl9Q5g9lPkgBl/9hNyAu6HuEH2J4XmIv2znEpkDd0SaZVxW6iQ==}
 
   '@types/prop-types@15.7.15':
     resolution: {integrity: sha512-F6bEyamV9jKGAFBEmlQnesRPGOQqS2+Uwi0Em15xenOxHaf2hv6L8YCVn3rPdPJOiJfPiCnLIRyvwVaqMY3MIw==}
@@ -6087,6 +6093,10 @@ snapshots:
       '@types/node': 20.19.39
       xmlbuilder: 15.1.1
     optional: true
+
+  '@types/pngjs@6.0.5':
+    dependencies:
+      '@types/node': 20.19.39
 
   '@types/prop-types@15.7.15': {}
 
