@@ -1,4 +1,5 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import fs from 'node:fs';
+import { spawn, spawnSync, type ChildProcessWithoutNullStreams, type SpawnSyncReturns } from 'node:child_process';
 import net from 'node:net';
 import path from 'node:path';
 
@@ -39,6 +40,7 @@ async function startViteServer(input: {
   const port = await getFreePort();
   const url = `http://127.0.0.1:${port}`;
   const viteBin = path.join(input.workspacePath, 'node_modules', 'vite', 'bin', 'vite.js');
+  ensureWorkspaceDependencies(input.workspacePath, viteBin);
   const child = spawn(
     process.execPath,
     [viteBin, ...input.args(port)],
@@ -72,6 +74,63 @@ async function startViteServer(input: {
     output: () => output,
     kill: () => killChild(child),
   };
+}
+
+export function ensureWorkspaceDependencies(workspacePath: string, viteBin = path.join(workspacePath, 'node_modules', 'vite', 'bin', 'vite.js')): void {
+  if (fs.existsSync(viteBin)) return;
+  if (!fs.existsSync(path.join(workspacePath, 'package.json'))) {
+    throw new Error(`VKEN workspace is missing package.json at ${workspacePath}`);
+  }
+  const install = resolveInstallCommand(workspacePath);
+  const result = spawnSync(install.command, install.args, {
+    cwd: workspacePath,
+    shell: false,
+    encoding: 'utf8',
+    timeout: installTimeoutMs(),
+    env: {
+      ...process.env,
+      BROWSER: 'none',
+      CI: '1',
+      NPM_CONFIG_AUDIT: 'false',
+      NPM_CONFIG_FUND: 'false',
+    },
+  });
+  if (result.status !== 0 || result.error) {
+    const detail = formatInstallFailure(result);
+    throw new Error(`VKEN dependency install failed (${install.command} ${install.args.join(' ')}): ${detail}`);
+  }
+  if (!fs.existsSync(viteBin)) {
+    throw new Error(`VKEN dependency install completed but Vite was not found at ${viteBin}`);
+  }
+}
+
+export function resolveInstallCommand(workspacePath: string): { command: string; args: string[] } {
+  if (fs.existsSync(path.join(workspacePath, 'pnpm-lock.yaml'))) {
+    return { command: 'pnpm', args: ['install', '--no-frozen-lockfile'] };
+  }
+  if (fs.existsSync(path.join(workspacePath, 'yarn.lock'))) {
+    return { command: 'yarn', args: ['install'] };
+  }
+  if (fs.existsSync(path.join(workspacePath, 'bun.lockb')) || fs.existsSync(path.join(workspacePath, 'bun.lock'))) {
+    return { command: 'bun', args: ['install'] };
+  }
+  if (fs.existsSync(path.join(workspacePath, 'package-lock.json'))) {
+    return { command: 'npm', args: ['ci', '--no-audit', '--no-fund'] };
+  }
+  return { command: 'npm', args: ['install', '--no-audit', '--no-fund'] };
+}
+
+function installTimeoutMs(): number {
+  const configured = Number(process.env.VKEN_REPO_INSTALL_TIMEOUT_MS);
+  return Number.isFinite(configured) && configured > 0 ? configured : 180_000;
+}
+
+function formatInstallFailure(result: SpawnSyncReturns<string>): string {
+  const spawnError = result.error as NodeJS.ErrnoException | undefined;
+  if (spawnError?.code === 'ENOENT') return 'package manager executable not found in the runtime image';
+  if (spawnError?.code === 'ETIMEDOUT') return 'dependency install timed out';
+  const output = result.stderr || result.stdout || spawnError?.message || 'unknown error';
+  return output.slice(-2_000).trim();
 }
 
 async function getFreePort(): Promise<number> {
