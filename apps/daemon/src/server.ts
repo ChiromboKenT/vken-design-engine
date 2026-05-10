@@ -672,7 +672,7 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
     if (webPort && webPort !== resolvedPort) ports.push(webPort);
     const schemes = ['http', 'https'];
     const loopbackHosts = ['127.0.0.1', 'localhost', '[::1]'];
-    return new Set(
+    const origins = new Set(
       ports.flatMap((p) => [
         ...schemes.flatMap((s) => loopbackHosts.map((h) => `${s}://${h}:${p}`)),
         // When bound to a specific non-loopback address (e.g. Tailscale,
@@ -681,6 +681,14 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
         ...schemes.map((s) => `${s}://${host}:${p}`),
       ]),
     );
+    // HuggingFace Spaces proxies browser requests through the Space's public
+    // hostname (no port). SPACE_HOST is set automatically by the HF runtime.
+    const spaceHost = process.env.SPACE_HOST;
+    if (spaceHost) {
+      origins.add(`https://${spaceHost}`);
+      origins.add(`http://${spaceHost}`);
+    }
+    return origins;
   }
 
   // Routes that serve content to sandboxed iframes (Origin: null) for
