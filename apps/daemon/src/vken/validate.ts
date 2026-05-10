@@ -4,9 +4,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { AxeBuilder } from '@axe-core/playwright';
 import { PNG } from 'pngjs';
-import { chromium, type BrowserContext } from 'playwright';
+import type { BrowserContext } from 'playwright';
 import { pixelDiff } from './algorithms/pixel-diff.js';
 import { computeVisualGap } from './algorithms/visual-gap.js';
+import { launchVkenChromium } from './browser.js';
 import { spawnVitePreview } from './runner.js';
 import type { RgbaImage } from './types.js';
 
@@ -45,11 +46,11 @@ export async function validateMaterializedWorkspace(input: {
   }
 
   let preview: Awaited<ReturnType<typeof spawnVitePreview>> | null = null;
-  let browser: Awaited<ReturnType<typeof chromium.launch>> | null = null;
+  let browser: Awaited<ReturnType<typeof launchVkenChromium>> | null = null;
   let context: BrowserContext | null = null;
   try {
     preview = await spawnVitePreview({ workspacePath: input.workspaceDir, timeoutMs: 30_000 });
-    browser = await chromium.launch({ headless: true });
+    browser = await launchVkenChromium();
     context = await browser.newContext({ viewport: DESKTOP_VIEWPORT });
     const page = await context.newPage();
     const consoleErrors: string[] = [];

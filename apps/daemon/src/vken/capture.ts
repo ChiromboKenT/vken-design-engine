@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { chromium, type Browser, type Page } from 'playwright';
+import type { Browser, Page } from 'playwright';
+import { launchVkenChromium } from './browser.js';
 import type { VkenViewport, VkenWorkspaceIndex } from './types.js';
 
 const VIEWPORTS = {
@@ -30,7 +31,7 @@ export async function captureVkenWorkspace(input: {
   checkpoint?: string;
 }): Promise<VkenCaptureRecord[]> {
   const captures: VkenCaptureRecord[] = [];
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchVkenChromium();
   try {
     for (const route of input.index.routes) {
       for (const viewport of ['desktop', 'tablet', 'mobile'] as const) {
@@ -59,7 +60,7 @@ export async function captureVkenWebsite(input: {
   checkpoint?: string;
 }): Promise<VkenCaptureRecord[]> {
   const captures: VkenCaptureRecord[] = [];
-  const browser = await chromium.launch({ headless: true });
+  const browser = await launchVkenChromium();
   const parsed = new URL(input.targetUrl);
   const routePath = parsed.pathname === '/' && !parsed.search ? '/' : `${parsed.pathname}${parsed.search}`;
   try {
