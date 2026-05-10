@@ -4,8 +4,11 @@ ENV NODE_ENV=production
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 
-# Playwright system dependencies for Chromium on Debian Bookworm
+# Build tools (needed for better-sqlite3 native compilation fallback)
+# Chromium + system deps for Playwright screenshot capture
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-minimal \
+    build-essential \
     chromium \
     fonts-liberation \
     libasound2 \
@@ -40,7 +43,15 @@ COPY samples ./samples
 COPY scripts ./scripts
 COPY infra ./infra
 COPY kb ./kb
+
+# Install deps (postinstall builds sidecar-proto, sidecar, platform, tools/dev, tools/pack)
 RUN NODE_ENV=development pnpm install --frozen-lockfile --prod=false
+
+# Explicit workspace package build before daemon TSC (contracts exports src directly)
+RUN pnpm --filter '@open-design/sidecar-proto' run build
+RUN pnpm --filter '@open-design/sidecar' run build
+RUN pnpm --filter '@open-design/platform' run build
+
 ENV NODE_ENV=production
 RUN pnpm --filter @open-design/daemon build
 RUN pnpm build
