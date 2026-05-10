@@ -367,6 +367,43 @@ const ARTIFACTS_DIR = path.join(RUNTIME_DATA_DIR, 'artifacts');
 const PROJECTS_DIR = path.join(RUNTIME_DATA_DIR, 'projects');
 fs.mkdirSync(PROJECTS_DIR, { recursive: true });
 
+function normalizePublicHost(value) {
+  const raw = cleanString(value).replace(/\/+$/, '');
+  if (!raw) return '';
+  const candidate = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw)
+    ? raw
+    : `https://${raw}`;
+  try {
+    const parsed = new URL(candidate);
+    if (parsed.username || parsed.password || parsed.search || parsed.hash) {
+      return '';
+    }
+    if (parsed.pathname !== '/' && parsed.pathname !== '') return '';
+    return parsed.host.toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+function addPublicHostOriginAllowlist(origins) {
+  const spaceHost = normalizePublicHost(process.env.SPACE_HOST);
+  if (!spaceHost) return origins;
+  origins.add(`https://${spaceHost}`);
+  origins.add(`http://${spaceHost}`);
+  return origins;
+}
+
+function addPublicHostHeaderAllowlist(hosts) {
+  const spaceHost = normalizePublicHost(process.env.SPACE_HOST);
+  if (!spaceHost) return hosts;
+  hosts.add(spaceHost);
+  if (!spaceHost.includes(':')) {
+    hosts.add(`${spaceHost}:443`);
+    hosts.add(`${spaceHost}:80`);
+  }
+  return hosts;
+}
+
 export const SSE_KEEPALIVE_INTERVAL_MS = 25_000;
 
 export function normalizeProjectDisplayStatus(status) {
@@ -672,23 +709,19 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
     if (webPort && webPort !== resolvedPort) ports.push(webPort);
     const schemes = ['http', 'https'];
     const loopbackHosts = ['127.0.0.1', 'localhost', '[::1]'];
+    const bindHost = String(host).toLowerCase();
     const origins = new Set(
       ports.flatMap((p) => [
         ...schemes.flatMap((s) => loopbackHosts.map((h) => `${s}://${h}:${p}`)),
         // When bound to a specific non-loopback address (e.g. Tailscale,
         // LAN IP, or 0.0.0.0), allow browser requests from that address
         // too so the documented --host escape hatch remains usable.
-        ...schemes.map((s) => `${s}://${host}:${p}`),
+        ...schemes.map((s) => `${s}://${bindHost}:${p}`),
       ]),
     );
     // HuggingFace Spaces proxies browser requests through the Space's public
     // hostname (no port). SPACE_HOST is set automatically by the HF runtime.
-    const spaceHost = process.env.SPACE_HOST;
-    if (spaceHost) {
-      origins.add(`https://${spaceHost}`);
-      origins.add(`http://${spaceHost}`);
-    }
-    return origins;
+    return addPublicHostOriginAllowlist(origins);
   }
 
   // Routes that serve content to sandboxed iframes (Origin: null) for
@@ -720,7 +753,7 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
       return res.status(403).json({ error: 'Server initializing' });
     }
 
-    if (!buildAllowedOrigins().has(String(origin))) {
+    if (!buildAllowedOrigins().has(String(origin).toLowerCase())) {
       return res.status(403).json({ error: 'Cross-origin requests are not allowed' });
     }
     next();
@@ -850,7 +883,7 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
   // and the MCP runs in-process via 127.0.0.1, so both legitimate
   // callers pass the check.
   app.post('/api/active', (req, res) => {
-    if (!isLocalSameOrigin(req, resolvedPort)) {
+    if (!isLocalSameOrigin(req, resolvedPort, host)) {
       return res.status(403).json({ error: 'cross-origin request rejected' });
     }
     try {
@@ -877,7 +910,7 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
   });
 
   app.get('/api/active', (req, res) => {
-    if (!isLocalSameOrigin(req, resolvedPort)) {
+    if (!isLocalSameOrigin(req, resolvedPort, host)) {
       return res.status(403).json({ error: 'cross-origin request rejected' });
     }
     if (!activeContext || Date.now() - activeContext.ts > ACTIVE_CONTEXT_TTL_MS) {
@@ -910,7 +943,7 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
   let installInfoCache: { t: number; payload: object } | null = null;
 
   app.get('/api/mcp/install-info', (req, res) => {
-    if (!isLocalSameOrigin(req, resolvedPort)) {
+    if (!isLocalSameOrigin(req, resolvedPort, host)) {
       return res.status(403).json({ error: 'cross-origin request rejected' });
     }
     const now = Date.now();
@@ -2314,7 +2347,7 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
   });
 
   app.get('/api/app-config', async (req, res) => {
-    if (!isLocalSameOrigin(req, resolvedPort)) {
+    if (!isLocalSameOrigin(req, resolvedPort, host)) {
       return res.status(403).json({ error: 'cross-origin request rejected' });
     }
     try {
@@ -2328,7 +2361,7 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
   });
 
   app.put('/api/app-config', async (req, res) => {
-    if (!isLocalSameOrigin(req, resolvedPort)) {
+    if (!isLocalSameOrigin(req, resolvedPort, host)) {
       return res.status(403).json({ error: 'cross-origin request rejected' });
     }
     try {
@@ -2342,7 +2375,7 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
   });
 
   app.post('/api/projects/:id/media/generate', async (req, res) => {
-    if (!isLocalSameOrigin(req, resolvedPort)) {
+    if (!isLocalSameOrigin(req, resolvedPort, host)) {
       return res.status(403).json({
         error:
           'cross-origin request rejected: media generation is restricted to the local UI / CLI',
@@ -2428,7 +2461,7 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
   });
 
   app.post('/api/media/tasks/:id/wait', async (req, res) => {
-    if (!isLocalSameOrigin(req, resolvedPort)) {
+    if (!isLocalSameOrigin(req, resolvedPort, host)) {
       return res.status(403).json({ error: 'cross-origin request rejected' });
     }
     const taskId = req.params.id;
@@ -2478,7 +2511,7 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
   });
 
   app.get('/api/projects/:id/media/tasks', (req, res) => {
-    if (!isLocalSameOrigin(req, resolvedPort)) {
+    if (!isLocalSameOrigin(req, resolvedPort, host)) {
       return res.status(403).json({ error: 'cross-origin request rejected' });
     }
     const projectId = req.params.id;
@@ -4470,10 +4503,10 @@ export function rewriteSkillAssetUrls(html: string, skillId: string): string {
   );
 }
 
-export function isLocalSameOrigin(req, port) {
+export function isLocalSameOrigin(req, port, bindHostOverride = undefined) {
   // Accepts http + https, loopback hosts, OD_WEB_PORT, and the explicit
   // bind host — matching the global origin middleware policy exactly.
-  const host = String(req.headers.host || '');
+  const host = String(req.headers.host || '').toLowerCase();
   const origin = req.headers.origin;
 
   // Build allowed set inline (same logic as buildAllowedOrigins in
@@ -4482,14 +4515,15 @@ export function isLocalSameOrigin(req, port) {
   const ports = [port];
   const webPort = Number(process.env.OD_WEB_PORT);
   if (webPort && webPort !== port) ports.push(webPort);
-  const bindHost = process.env.OD_BIND_HOST || '127.0.0.1';
+  const bindHost = bindHostOverride || process.env.OD_BIND_HOST || '127.0.0.1';
   const loopbackHosts = ['127.0.0.1', 'localhost', '[::1]'];
   const allowedHosts = new Set(
     ports.flatMap((p) => [
       ...loopbackHosts.map((h) => `${h}:${p}`),
-      `${bindHost}:${p}`,
+      `${String(bindHost).toLowerCase()}:${p}`,
     ]),
   );
+  addPublicHostHeaderAllowlist(allowedHosts);
 
   // Reject unknown Host first (DNS rebinding / Host header attack)
   if (!allowedHosts.has(host)) return false;
@@ -4501,8 +4535,9 @@ export function isLocalSameOrigin(req, port) {
   const allowedOrigins = new Set(
     ports.flatMap((p) => [
       ...schemes.flatMap((s) => loopbackHosts.map((h) => `${s}://${h}:${p}`)),
-      ...schemes.map((s) => `${s}://${bindHost}:${p}`),
+      ...schemes.map((s) => `${s}://${String(bindHost).toLowerCase()}:${p}`),
     ]),
   );
-  return allowedOrigins.has(String(origin));
+  addPublicHostOriginAllowlist(allowedOrigins);
+  return allowedOrigins.has(String(origin).toLowerCase());
 }

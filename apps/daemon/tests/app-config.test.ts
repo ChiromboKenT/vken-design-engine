@@ -272,6 +272,45 @@ describe('app-config origin guard', () => {
     expect(res.status).toBe(200);
   });
 
+  it('allows GET from the Hugging Face SPACE_HOST public host', async () => {
+    const originalSpaceHost = process.env.SPACE_HOST;
+    process.env.SPACE_HOST = 'k3nny97-vken-engine.hf.space';
+    try {
+      const res = await httpRequest(`${baseUrl}/api/app-config`, {
+        headers: {
+          Host: 'k3nny97-vken-engine.hf.space',
+          Origin: 'https://k3nny97-vken-engine.hf.space',
+        },
+      });
+      expect(res.status).toBe(200);
+    } finally {
+      if (originalSpaceHost === undefined) {
+        delete process.env.SPACE_HOST;
+      } else {
+        process.env.SPACE_HOST = originalSpaceHost;
+      }
+    }
+  });
+
+  it('allows same-host Hugging Face GET without an Origin header', async () => {
+    const originalSpaceHost = process.env.SPACE_HOST;
+    process.env.SPACE_HOST = 'k3nny97-vken-engine.hf.space';
+    try {
+      const res = await httpRequest(`${baseUrl}/api/app-config`, {
+        headers: {
+          Host: 'k3nny97-vken-engine.hf.space',
+        },
+      });
+      expect(res.status).toBe(200);
+    } finally {
+      if (originalSpaceHost === undefined) {
+        delete process.env.SPACE_HOST;
+      } else {
+        process.env.SPACE_HOST = originalSpaceHost;
+      }
+    }
+  });
+
   it('rejects GET with cross-origin Origin header', async () => {
     const res = await httpRequest(`${baseUrl}/api/app-config`, {
       headers: {

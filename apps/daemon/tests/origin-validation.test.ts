@@ -32,13 +32,19 @@ function createOriginMiddleware(resolvedPort, host = '127.0.0.1') {
     if (webPort && webPort !== resolvedPort) ports.push(webPort);
     const schemes = ['http', 'https'];
     const loopbackHosts = ['127.0.0.1', 'localhost', '[::1]'];
+    const bindHost = String(host).toLowerCase();
     const allowedOrigins = new Set(
       ports.flatMap((p) => [
         ...schemes.flatMap((s) => loopbackHosts.map((h) => `${s}://${h}:${p}`)),
-        ...schemes.map((s) => `${s}://${host}:${p}`),
+        ...schemes.map((s) => `${s}://${bindHost}:${p}`),
       ]),
     );
-    if (!allowedOrigins.has(String(origin))) {
+    const spaceHost = String(process.env.SPACE_HOST || '').trim().replace(/\/+$/, '').toLowerCase();
+    if (spaceHost) {
+      allowedOrigins.add(`https://${spaceHost}`);
+      allowedOrigins.add(`http://${spaceHost}`);
+    }
+    if (!allowedOrigins.has(String(origin).toLowerCase())) {
       return res.status(403).json({ error: 'Cross-origin requests are not allowed' });
     }
     next();
@@ -211,6 +217,23 @@ describe('daemon origin validation middleware', () => {
       headers: { 'content-type': 'application/json' },
     });
     expect(res.status).toBe(403);
+  });
+
+  it('allows browser requests from the Hugging Face SPACE_HOST origin', async () => {
+    const originalSpaceHost = process.env.SPACE_HOST;
+    process.env.SPACE_HOST = 'k3nny97-vken-engine.hf.space';
+    try {
+      const res = await request(port, 'GET', '/api/projects', {
+        origin: 'https://k3nny97-vken-engine.hf.space',
+      });
+      expect(res.status).toBe(200);
+    } finally {
+      if (originalSpaceHost === undefined) {
+        delete process.env.SPACE_HOST;
+      } else {
+        process.env.SPACE_HOST = originalSpaceHost;
+      }
+    }
   });
 
   // --- OD_WEB_PORT (split-port proxy) ---
