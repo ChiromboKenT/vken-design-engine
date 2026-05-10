@@ -28,6 +28,7 @@ export function Notebook({ runId, state }: { runId: string | null; state: VkenRu
   const [finalizing, setFinalizing] = useState(false);
   const [finalLink, setFinalLink] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const auditOnly = state.summary.framework === 'website-capture';
 
   const pendingPatches = useMemo(
     () => state.patches.filter((patch) => patch.status === 'proposed'),
@@ -41,7 +42,7 @@ export function Notebook({ runId, state }: { runId: string | null; state: VkenRu
     [activeCategory, state.patches],
   );
   const topPatch = filteredPatches.find((patch) => patch.status === 'proposed') ?? pendingPatches[0] ?? null;
-  const activeStageId = computeActiveStageId(runId, state, pendingPatches);
+  const activeStageId = computeActiveStageId(runId, state, pendingPatches, auditOnly);
 
   useEffect(() => {
     setExpandedStage(activeStageId);
@@ -164,9 +165,9 @@ export function Notebook({ runId, state }: { runId: string | null; state: VkenRu
             {categories.flatMap((category) =>
               category.evidence.slice(0, 3).map((item) => (
                 <li key={`${category.category}-${item.file}-${item.line ?? item.label}`}>
-                  <span>{category.label}</span>
+                  <span>{item.label}</span>
                   <code>
-                    {item.file}
+                    {category.label} | {item.file}
                     {item.line ? `:${item.line}` : ''}
                   </code>
                 </li>
@@ -179,12 +180,22 @@ export function Notebook({ runId, state }: { runId: string | null; state: VkenRu
           id="direction"
           eyebrow="03"
           title="Direction"
-          summary={state.directionPicked ? `Picked ${state.directionPicked}` : `${state.directions.length} choices ready`}
-          state={stageState(activeStageId, 'direction', Boolean(state.directionPicked))}
+          summary={
+            auditOnly
+              ? 'source repo required'
+              : state.directionPicked
+                ? `Picked ${state.directionPicked}`
+                : `${state.directions.length} choices ready`
+          }
+          state={stageState(activeStageId, 'direction', !auditOnly && Boolean(state.directionPicked))}
           expanded={expandedStage === 'direction'}
           onToggle={setExpandedStage}
         >
-          {state.directions.length > 0 && !state.directionPicked ? (
+          {auditOnly ? (
+            <p className="vken-muted-line">
+              Public website captures are audit-only because VKEN cannot edit remote source code. Use a public Vite + React + Tailwind repo URL or a sample to run repair.
+            </p>
+          ) : state.directions.length > 0 && !state.directionPicked ? (
             <SteerForm runId={runId} variant="direction" directions={state.directions} />
           ) : (
             <p className="vken-muted-line">
@@ -198,18 +209,22 @@ export function Notebook({ runId, state }: { runId: string | null; state: VkenRu
           eyebrow="04"
           title="Proposing"
           summary={
-            pendingPatches.length > 0
+            auditOnly
+              ? 'not available for public site'
+              : pendingPatches.length > 0
               ? `${pendingPatches.length} patches need review`
               : appliedCount > 0
                 ? `${appliedCount} patches landed`
                 : 'waiting for direction'
           }
-          state={stageState(activeStageId, 'proposing', appliedCount > 0 || pendingPatches.length === 0)}
+          state={stageState(activeStageId, 'proposing', !auditOnly && (appliedCount > 0 || pendingPatches.length > 0))}
           expanded={expandedStage === 'proposing'}
           onToggle={setExpandedStage}
         >
           <div className="vken-patch-stack">
-            {filteredPatches.length > 0 ? (
+            {auditOnly ? (
+              <p className="vken-muted-line">Patch proposals require a writable source workspace.</p>
+            ) : filteredPatches.length > 0 ? (
               filteredPatches.map((patch) => (
                 <PatchRow
                   key={patch.id}
@@ -240,13 +255,15 @@ export function Notebook({ runId, state }: { runId: string | null; state: VkenRu
           id="validating"
           eyebrow="05"
           title="Validating"
-          summary={validationSummary(state.validations)}
-          state={stageState(activeStageId, 'validating', state.validations.length > 0)}
+          summary={auditOnly ? 'not run for audit-only capture' : validationSummary(state.validations)}
+          state={stageState(activeStageId, 'validating', !auditOnly && state.validations.length > 0)}
           expanded={expandedStage === 'validating'}
           onToggle={setExpandedStage}
         >
           <div className="vken-validation-grid">
-            {state.validations.length > 0 ? (
+            {auditOnly ? (
+              <p className="vken-muted-line">Validation starts after VKEN applies repair patches to a source workspace.</p>
+            ) : state.validations.length > 0 ? (
               state.validations.map((validation) => (
                 <StatusPill
                   key={validation.stage}
@@ -264,26 +281,43 @@ export function Notebook({ runId, state }: { runId: string | null; state: VkenRu
           id="finalize"
           eyebrow="06"
           title="Finalize"
-          summary={state.prUrl || finalLink ? 'reviewable output ready' : 'waiting for validation'}
-          state={state.prUrl || finalLink ? 'done' : activeStageId === 'finalize' ? 'active' : 'queued'}
+          summary={auditOnly ? 'audit complete' : state.prUrl || finalLink ? 'reviewable output ready' : 'waiting for validation'}
+          state={
+            auditOnly && state.status === 'succeeded'
+              ? 'done'
+              : state.prUrl || finalLink
+                ? 'done'
+                : activeStageId === 'finalize'
+                  ? 'active'
+                  : 'queued'
+          }
           expanded={expandedStage === 'finalize'}
           onToggle={setExpandedStage}
         >
           <div className="vken-finalize-box">
-            <button type="button" className="vken-button primary" onClick={finalize} disabled={!runId || finalizing}>
-              <Icon name={finalizing ? 'spinner' : 'share'} size={14} />
-              <span>{finalizing ? 'Finalizing' : 'Finalize repair'}</span>
-            </button>
-            {state.prUrl || finalLink ? (
-              <a href={state.prUrl ?? finalLink ?? undefined} target="_blank" rel="noreferrer">
-                Open final output
-              </a>
-            ) : null}
+            {auditOnly ? (
+              <p className="vken-muted-line">The public site audit is complete. Start from a repo URL or sample when you want VKEN to produce repair output.</p>
+            ) : (
+              <>
+                <button type="button" className="vken-button primary" onClick={finalize} disabled={!runId || finalizing}>
+                  <Icon name={finalizing ? 'spinner' : 'share'} size={14} />
+                  <span>{finalizing ? 'Finalizing' : 'Finalize repair'}</span>
+                </button>
+                {state.prUrl || finalLink ? (
+                  <a href={state.prUrl ?? finalLink ?? undefined} target="_blank" rel="noreferrer">
+                    Open final output
+                  </a>
+                ) : null}
+              </>
+            )}
           </div>
         </StageCard>
       </div>
 
       <div className="vken-approve-bar">
+        {auditOnly ? (
+          <span className="vken-approve-note">Public site captures are audit-only. Repo URLs and samples enable code repair.</span>
+        ) : null}
         <button
           type="button"
           className="vken-button primary"
@@ -405,9 +439,11 @@ function computeActiveStageId(
   runId: string | null,
   state: VkenRunState,
   pendingPatches: VkenPatch[],
+  auditOnly: boolean,
 ): string {
   if (!runId || state.captures.length === 0) return 'capture';
   if (state.categories.length === 0 && state.score == null) return 'findings';
+  if (auditOnly) return 'findings';
   if (state.directions.length > 0 && !state.directionPicked) return 'direction';
   if (pendingPatches.length > 0) return 'proposing';
   if (state.patches.length > 0) {

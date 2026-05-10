@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
 import type { VkenCreateRunRequest, VkenSampleId } from './types.js';
 
 export interface VkenIntakeResult {
@@ -67,7 +67,7 @@ export function intakeFromUrl(
   if (result.status !== 0) {
     throw new VkenIntakeError(
       'VKEN_INTAKE_FAILED',
-      `git clone failed: ${(result.stderr || result.stdout || '').slice(-1000)}`,
+      `git clone failed: ${formatGitCloneFailure(result)}`,
     );
   }
   const sizeMb = directorySize(resolvedClone) / 1024 / 1024;
@@ -80,6 +80,15 @@ export function intakeFromUrl(
     sourceRef: cleanUrl,
     workspacePath: resolvedClone,
   });
+}
+
+function formatGitCloneFailure(result: SpawnSyncReturns<string>): string {
+  const spawnError = result.error as NodeJS.ErrnoException | undefined;
+  if (spawnError?.code === 'ENOENT') {
+    return 'git executable not found in the runtime image';
+  }
+  const output = result.stderr || result.stdout || spawnError?.message || 'unknown error';
+  return output.slice(-1000).trim();
 }
 
 export function intakeFromWebsite(

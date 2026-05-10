@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react';
 import type { VkenPatch, VkenSampleId, VkenViewport } from '@open-design/contracts';
 import { Icon } from '../Icon';
 import type { VkenCaptureSummary, VkenRunState } from './useVkenSse';
@@ -6,6 +6,7 @@ import type { VkenCaptureSummary, VkenRunState } from './useVkenSse';
 const SAMPLES: VkenSampleId[] = ['landing-generic', 'dashboard-cluttered', 'ecommerce-basic'];
 const VIEWPORTS: VkenViewport[] = ['desktop', 'tablet', 'mobile'];
 type PreviewMode = 'before' | 'current' | 'compare';
+const ZOOM_LEVELS = [0.5, 0.75, 1, 1.25, 1.5, 2] as const;
 
 export function PatientPane({
   runId,
@@ -27,6 +28,7 @@ export function PatientPane({
   const [viewport, setViewport] = useState<VkenViewport>('desktop');
   const [selectedCheckpoint, setSelectedCheckpoint] = useState('initial');
   const [userPinned, setUserPinned] = useState(false);
+  const [zoom, setZoom] = useState(1);
   const [url, setUrl] = useState('');
 
   const routeOptions = useMemo(() => unique(state.captures.map((capture) => capture.routePath)), [state.captures]);
@@ -74,10 +76,15 @@ export function PatientPane({
   const selectedLabel = activeCapture
     ? checkpointLabel(activeCapture.checkpoint, checkpoints, activePatch)
     : 'Waiting for screenshot';
+  const zoomIndex = nearestZoomIndex(zoom);
 
   useEffect(() => {
     if (!canCompare && mode === 'compare') setMode('current');
   }, [canCompare, mode]);
+
+  useEffect(() => {
+    setZoom(1);
+  }, [runId, routePath, viewport]);
 
   async function submitUrl(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -142,6 +149,31 @@ export function PatientPane({
               Compare
             </button>
           </div>
+          {runId && activeCapture ? (
+            <div className="vken-zoom-controls" role="group" aria-label="Preview zoom">
+              <button
+                type="button"
+                onClick={() => setZoom(ZOOM_LEVELS[Math.max(0, zoomIndex - 1)] ?? 1)}
+                disabled={zoomIndex === 0}
+                title="Zoom out"
+                aria-label="Zoom out"
+              >
+                <Icon name="zoom-out" size={14} />
+              </button>
+              <button type="button" onClick={() => setZoom(1)} title="Reset zoom">
+                {Math.round(zoom * 100)}%
+              </button>
+              <button
+                type="button"
+                onClick={() => setZoom(ZOOM_LEVELS[Math.min(ZOOM_LEVELS.length - 1, zoomIndex + 1)] ?? 1)}
+                disabled={zoomIndex === ZOOM_LEVELS.length - 1}
+                title="Zoom in"
+                aria-label="Zoom in"
+              >
+                <Icon name="zoom-in" size={14} />
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -153,12 +185,14 @@ export function PatientPane({
                 capture={beforeCapture}
                 label="Before"
                 caption={checkpointLabel(beforeCapture.checkpoint, checkpoints)}
+                zoom={zoom}
               />
               <ScreenshotPanel
                 capture={currentCapture}
                 label="Current"
                 caption={checkpointLabel(currentCapture.checkpoint, checkpoints, activePatch)}
                 scoreDelta={activeApply?.scoreDelta}
+                zoom={zoom}
               />
             </div>
           ) : activeCapture ? (
@@ -167,6 +201,7 @@ export function PatientPane({
               label={mode === 'before' ? 'Before' : 'Current'}
               caption={selectedLabel}
               scoreDelta={activeApply?.scoreDelta}
+              zoom={zoom}
             />
           ) : (
             <div className="vken-preview-empty">
@@ -180,7 +215,7 @@ export function PatientPane({
               <span className="vken-region-kicker">VKEN</span>
               <h2>Paste a URL, capture the site, then drive a visual repair pass.</h2>
               <p>
-                VKEN keeps the evidence visual: before, every applied checkpoint, and the current repair are shown as screenshots.
+                Repository URLs can be repaired live. Public website URLs are captured as audit evidence when no source code is available.
               </p>
             </div>
             <div className="vken-sample-grid">
@@ -203,7 +238,7 @@ export function PatientPane({
               </button>
             </form>
             <p className={startError ? 'vken-start-error' : 'vken-start-note'}>
-              {startError ?? 'Public site URLs capture screenshots; supported Vite + React + Tailwind repos can be repaired live.'}
+              {startError ?? 'Use a public GitHub, GitLab, or Codeberg Vite + React + Tailwind repo for auto repair, or any public site URL for capture-only audit.'}
             </p>
           </div>
         )}
@@ -263,14 +298,16 @@ function ScreenshotPanel({
   label,
   caption,
   scoreDelta,
+  zoom,
 }: {
   capture: VkenCaptureSummary;
   label: string;
   caption: string;
   scoreDelta?: number;
+  zoom: number;
 }) {
   return (
-    <figure className="vken-screenshot-panel">
+    <figure className="vken-screenshot-panel" style={{ '--vken-preview-zoom': zoom } as CSSProperties}>
       <div className="vken-screenshot-meta">
         <span>{label}</span>
         <strong>{caption}</strong>
@@ -281,7 +318,9 @@ function ScreenshotPanel({
           </em>
         ) : null}
       </div>
-      <img src={capture.screenshotUrl} alt={`${caption} ${capture.routePath} ${capture.viewport}`} />
+      <div className="vken-screenshot-viewport">
+        <img src={capture.screenshotUrl} alt={`${caption} ${capture.routePath} ${capture.viewport}`} />
+      </div>
     </figure>
   );
 }
@@ -301,6 +340,19 @@ function uniqueCheckpoints(captures: VkenCaptureSummary[]): VkenCaptureSummary[]
 function checkpointRank(checkpoint: string): number {
   if (checkpoint === 'initial') return 0;
   return 1;
+}
+
+function nearestZoomIndex(zoom: number): number {
+  let best = 0;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  ZOOM_LEVELS.forEach((level, index) => {
+    const distance = Math.abs(level - zoom);
+    if (distance < bestDistance) {
+      best = index;
+      bestDistance = distance;
+    }
+  });
+  return best;
 }
 
 function checkpointLabel(

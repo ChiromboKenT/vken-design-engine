@@ -9,6 +9,8 @@ import { startViteDevServer } from './runner.js';
 import { scoreVkenIndex } from './score.js';
 import { critiqueCapture } from './critique.js';
 import { proposeDirections } from './directions.js';
+import { proposePatches } from './propose.js';
+import { initVirtualFs } from './apply.js';
 import type { VkenScorePayload } from './types.js';
 import { repoHash } from './memory.js';
 import { buildVkenProblemCategories, categoryTotals } from './categories.js';
@@ -283,6 +285,34 @@ export async function executeDeterministicVkenRun({
       service.emit(run, 'vken:direction', direction);
     }
     service.emit(run, 'vken:direction', { done: true });
+    const direction = directions[0];
+    if (direction) {
+      db.prepare(`UPDATE vken_directions SET is_chosen = CASE WHEN id = ? THEN 1 ELSE 0 END WHERE run_id = ?`).run(
+        direction.id,
+        run.id,
+      );
+      db.prepare(`UPDATE vken_runs SET direction_id = ? WHERE id = ?`).run(direction.id, run.id);
+      run.directionPicked = direction.id;
+      service.emit(run, 'vken:direction', { id: direction.id, picked: true });
+      run.vfs = initVirtualFs(intake.workspacePath);
+      const proposed = await proposePatches({
+        runId: run.id,
+        db,
+        workspacePath: intake.workspacePath,
+        index,
+        direction,
+        session: run.vfs,
+        opts: {
+          sampleId: intake.source === 'sample' ? intake.sourceRef : undefined,
+          byok: run.byok,
+          steers: run.steers,
+        },
+      });
+      run.vfs = proposed.session;
+      run.patchesProposed = proposed.patches.length;
+      for (const patch of proposed.patches) service.emit(run, 'vken:patch', patch);
+    }
+    service.emit(run, 'vken:patch', { done: true });
     db.prepare(`UPDATE vken_runs SET status = 'running', score_initial = ? WHERE id = ?`).run(score.value, run.id);
   } catch (error) {
     const endedAt = Date.now();

@@ -86,6 +86,7 @@ function statusCopy(state: VkenRunState): string {
   if (state.status === 'idle') return 'Choose a patient to begin repair.';
   if (state.status === 'queued') return 'Run queued.';
   if (state.status === 'running') return 'Repair pipeline is moving.';
+  if (state.summary.framework === 'website-capture' && state.status === 'succeeded') return 'Audit capture is ready.';
   if (state.status === 'succeeded') return 'Repair output is ready.';
   if (state.status === 'canceled') return 'Run canceled.';
   return 'Run needs review.';

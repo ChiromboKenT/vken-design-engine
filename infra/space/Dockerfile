@@ -7,6 +7,8 @@ ENV PATH=$PNPM_HOME:$PATH
 # Build tools (needed for better-sqlite3 native compilation fallback)
 # Chromium + system deps for Playwright screenshot capture
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    git \
     python3-minimal \
     build-essential \
     chromium \
