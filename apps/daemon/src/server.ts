@@ -4364,6 +4364,15 @@ export async function startServer({ port = 7456, host = process.env.OD_BIND_HOST
     }
   });
 
+  // SPA fallback — Next.js static export emits only out/index.html (the
+  // catch-all [[...slug]] page). Any deep link that isn't an API route or
+  // a real static asset must receive that shell so the client router can
+  // hydrate to the right view.
+  const spaIndex = path.join(STATIC_DIR, 'index.html');
+  if (fs.existsSync(spaIndex)) {
+    app.get('*', (_req, res) => res.sendFile(spaIndex));
+  }
+
   // Wait for `listen` to bind so callers always see the resolved URL —
   // critical when port=0 (ephemeral port) and when the embedding sidecar
   // needs to advertise the port to a parent process before any request
