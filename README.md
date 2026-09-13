@@ -716,7 +716,7 @@ Full walkthrough, bar-for-merging, code style, and what we don't accept → [`CO
 Thanks to everyone who has helped move VKEN Design Engine forward — through code, docs, feedback, new skills, new design systems, or even a sharp issue. Every real contribution counts, and the wall below is the easiest way to say so out loud.
 
 <a href="https://github.com/YOUR_GITHUB_OWNER/vken-design-engine/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=YOUR_GITHUB_OWNER/vken-design-engine&cache_bust=2026-05-04" alt="VKEN Design Engine contributors" />
+  <img src="https://contrib.rocks/image?repo=YOUR_GITHUB_OWNER/vken-design-engine&cache_bust=2026-09-13" alt="VKEN Design Engine contributors" />
 </a>
 
 If you've shipped your first PR — welcome. The [`good-first-issue`](https://github.com/YOUR_GITHUB_OWNER/vken-design-engine/labels/good-first-issue) label is the entry point.
@@ -733,9 +733,9 @@ The SVG above is regenerated daily by [`.github/workflows/metrics.yml`](.github/
 
 <a href="https://star-history.com/#YOUR_GITHUB_OWNER/vken-design-engine&Date">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=YOUR_GITHUB_OWNER/vken-design-engine&type=Date&theme=dark&cache_bust=2026-05-04" />
-    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=YOUR_GITHUB_OWNER/vken-design-engine&type=Date&cache_bust=2026-05-04" />
-    <img alt="VKEN Design Engine star history" src="https://api.star-history.com/svg?repos=YOUR_GITHUB_OWNER/vken-design-engine&type=Date&cache_bust=2026-05-04" />
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=YOUR_GITHUB_OWNER/vken-design-engine&type=Date&theme=dark&cache_bust=2026-09-13" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=YOUR_GITHUB_OWNER/vken-design-engine&type=Date&cache_bust=2026-09-13" />
+    <img alt="VKEN Design Engine star history" src="https://api.star-history.com/svg?repos=YOUR_GITHUB_OWNER/vken-design-engine&type=Date&cache_bust=2026-09-13" />
   </picture>
 </a>
 
